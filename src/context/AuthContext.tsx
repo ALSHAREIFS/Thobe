@@ -1,0 +1,307 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail,
+  User,
+} from 'firebase/auth';
+import { auth } from '../firebase/config';
+import { TailorService, parseFirebaseError } from '../services/firebaseService';
+import { UserProfile, UserRole, Shop, ShopStatus, ShopRequest, EmployeePermissions } from '../types';
+
+interface AuthContextType {
+  currentUser: UserProfile | null;
+  currentShop: Shop | null;
+  firebaseUser: User | null;
+  loading: boolean;
+  authError: string | null;
+  role: UserRole | null;
+  isSuperAdmin: boolean;
+  isShop: boolean;
+  isEmployee: boolean;
+  isShopSuspended: boolean;
+  canEditSettings: boolean;
+  canDeleteRecords: boolean;
+  hasPermission: (permission: keyof EmployeePermissions) => boolean;
+  
+  // Platform View toggle (for Super Admin)
+  platformViewMode: 'platform' | 'shop';
+  setPlatformViewMode: (mode: 'platform' | 'shop') => void;
+
+  // Auth actions
+  signIn: (email: string, pass: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
+  reloadAuthUser: () => Promise<boolean>;
+  submitRegistrationRequest: (data: {
+    ownerName: string;
+    shopName: string;
+    email: string;
+    phone: string;
+    city: string;
+    notes?: string;
+  }) => Promise<ShopRequest>;
+  updateShopSettings: (data: Partial<Shop>) => Promise<Shop>;
+  refreshProfile: () => Promise<void>;
+  clearAuthError: () => void;
+  selectShopForAdmin: (shop: Shop | null) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentShop, setCurrentShop] = useState<Shop | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [platformViewMode, setPlatformViewMode] = useState<'platform' | 'shop'>('platform');
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
+
+  const loadUserData = useCallback(async (user: User) => {
+    try {
+      setLoading(true);
+      setAuthError(null);
+
+      // 1. Check if user is Super Admin
+      const isSuper = await TailorService.checkIsSuperAdmin(user.uid, user.email);
+      setIsSuperAdmin(isSuper);
+
+      if (isSuper) {
+        // Bootstrap platform admin records if needed
+        await TailorService.bootstrapPlatformOwner({
+          uid: user.uid,
+          email: user.email || 'abdallahshareif11al@gmail.com',
+          fullName: user.displayName || 'مدير منصة ثوبي',
+        });
+        setPlatformViewMode('platform');
+      }
+
+      // 2. Fetch user profile from Firestore /users/{uid}
+      const profile = await TailorService.getUserProfile(user.uid);
+      if (profile) {
+        setCurrentUser(profile);
+      } else if (isSuper) {
+        // Fallback for Super Admin
+        const superProfile: UserProfile = {
+          userId: user.uid,
+          uid: user.uid,
+          shopId: '',
+          fullName: user.displayName || 'مدير منصة ثوبي (Super Admin)',
+          email: user.email || '',
+          role: 'SUPER_ADMIN',
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+        setCurrentUser(superProfile);
+      } else {
+        setCurrentUser(null);
+        setCurrentShop(null);
+        return;
+      }
+
+      // 3. Fetch user's shop if they belong to a shop
+      const shopIdToFetch = profile?.shopId;
+      if (shopIdToFetch) {
+        try {
+          const shop = await TailorService.getShop(shopIdToFetch);
+          setCurrentShop(shop);
+        } catch (shopErr: any) {
+          console.warn('Could not load shop for user:', shopErr);
+          setCurrentShop(null);
+        }
+      } else {
+        setCurrentShop(null);
+      }
+    } catch (err: any) {
+      console.error('Error in loadUserData:', err);
+      setAuthError(parseFirebaseError(err));
+      setCurrentUser(null);
+      setCurrentShop(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        await loadUserData(user);
+      } else {
+        setCurrentUser(null);
+        setCurrentShop(null);
+        setIsSuperAdmin(false);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [loadUserData]);
+
+  const signIn = async (email: string, pass: string) => {
+    try {
+      setLoading(true);
+      setAuthError(null);
+      await signInWithEmailAndPassword(auth, email.trim(), pass);
+    } catch (err: any) {
+      const msg = parseFirebaseError(err);
+      setAuthError(msg);
+      setLoading(false);
+      throw new Error(msg);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      setLoading(true);
+      await firebaseSignOut(auth);
+      setCurrentUser(null);
+      setCurrentShop(null);
+      setFirebaseUser(null);
+      setIsSuperAdmin(false);
+      setAuthError(null);
+      setPlatformViewMode('platform');
+    } catch (err: any) {
+      setAuthError(parseFirebaseError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendPasswordReset = async (email: string) => {
+    try {
+      setAuthError(null);
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch (err: any) {
+      const msg = parseFirebaseError(err);
+      setAuthError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const sendVerificationEmail = async () => {
+    try {
+      setAuthError(null);
+      await TailorService.sendVerificationEmail();
+    } catch (err: any) {
+      const msg = parseFirebaseError(err);
+      setAuthError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const reloadAuthUser = async (): Promise<boolean> => {
+    try {
+      const verified = await TailorService.reloadCurrentUser();
+      if (auth.currentUser) {
+        setFirebaseUser({ ...auth.currentUser });
+        await loadUserData(auth.currentUser);
+      }
+      return verified;
+    } catch (err: any) {
+      console.warn('Error reloading auth user:', err);
+      return false;
+    }
+  };
+
+  const submitRegistrationRequest = async (data: {
+    ownerName: string;
+    shopName: string;
+    email: string;
+    phone: string;
+    city: string;
+    notes?: string;
+  }) => {
+    try {
+      setAuthError(null);
+      const req = await TailorService.createShopRequest(data);
+      return req;
+    } catch (err: any) {
+      const msg = parseFirebaseError(err);
+      setAuthError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const updateShopSettings = async (data: Partial<Shop>): Promise<Shop> => {
+    if (!currentShop) throw new Error('لا يوجد متجر محدد');
+    try {
+      const updated = await TailorService.updateShop(currentShop.shopId, data);
+      setCurrentShop(updated);
+      return updated;
+    } catch (err: any) {
+      const msg = parseFirebaseError(err);
+      setAuthError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const selectShopForAdmin = (shop: Shop | null) => {
+    if (isSuperAdmin) {
+      setCurrentShop(shop);
+      if (shop) {
+        setPlatformViewMode('shop');
+      }
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (firebaseUser) {
+      await loadUserData(firebaseUser);
+    }
+  };
+
+  const role = isSuperAdmin ? 'SUPER_ADMIN' : currentUser?.role || null;
+  const isShop = role === 'SHOP';
+  const isEmployee = role === 'EMPLOYEE';
+  const isShopSuspended = currentShop ? currentShop.status === 'SUSPENDED' : false;
+
+  const hasPermission = useCallback((permission: keyof EmployeePermissions): boolean => {
+    if (isSuperAdmin || isShop) return true;
+    if (isEmployee && currentUser?.isActive) {
+      return !!currentUser?.permissions?.[permission];
+    }
+    return false;
+  }, [isSuperAdmin, isShop, isEmployee, currentUser]);
+
+  const value: AuthContextType = {
+    currentUser,
+    currentShop,
+    firebaseUser,
+    loading,
+    authError,
+    role,
+    isSuperAdmin,
+    isShop,
+    isEmployee,
+    isShopSuspended,
+    canEditSettings: isSuperAdmin || isShop,
+    canDeleteRecords: isSuperAdmin || isShop,
+    hasPermission,
+    platformViewMode,
+    setPlatformViewMode,
+    signIn,
+    signOut,
+    sendPasswordReset,
+    sendVerificationEmail,
+    reloadAuthUser,
+    submitRegistrationRequest,
+    updateShopSettings,
+    refreshProfile,
+    clearAuthError,
+    selectShopForAdmin,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
+};

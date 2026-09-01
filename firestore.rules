@@ -1,0 +1,304 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================
+    // 1. HELPER FUNCTIONS & AUTHENTICATION
+    // =========================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Platform Super Admin Check (Server Authoritative)
+    // Strict 3-Way Requirement:
+    // 1. Email is verified
+    // 2. Email matches platform owner
+    // 3. User UID matches designated Super Admin UID
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email == 'abdallahshareif11al@gmail.com' &&
+             request.auth.uid == 'DBBZKYS1AfRIegDVtSiwRqCPEKn2';
+    }
+
+    // Check if user has an authorized membership inside the shop subcollection
+    function hasShopMemberDoc(shopId, uid) {
+      return exists(/databases/$(database)/documents/shops/$(shopId)/users/$(uid));
+    }
+
+    function getShopMemberData(shopId, uid) {
+      return get(/databases/$(database)/documents/shops/$(shopId)/users/$(uid)).data;
+    }
+
+    // Check if user is the main SHOP account for this tenant
+    function isShopAccount(shopId) {
+      return isSuperAdmin() || (
+        isAuthenticated() &&
+        hasShopMemberDoc(shopId, request.auth.uid) &&
+        getShopMemberData(shopId, request.auth.uid).role == 'SHOP' &&
+        getShopMemberData(shopId, request.auth.uid).isActive == true
+      );
+    }
+
+    // Check if user is an active employee belonging to this shop
+    function isActiveEmployee(shopId) {
+      return isAuthenticated() &&
+             hasShopMemberDoc(shopId, request.auth.uid) &&
+             getShopMemberData(shopId, request.auth.uid).role == 'EMPLOYEE' &&
+             getShopMemberData(shopId, request.auth.uid).isActive == true;
+    }
+
+    // Tenant member check (either SHOP or active EMPLOYEE)
+    function isShopMember(shopId) {
+      return isShopAccount(shopId) || isActiveEmployee(shopId);
+    }
+
+    // Granular 5 Permission Check Helpers (Independent per collection)
+    function canAccessCustomers(shopId) {
+      return isShopAccount(shopId) || (
+        isActiveEmployee(shopId) &&
+        getShopMemberData(shopId, request.auth.uid).permissions.customers == true
+      );
+    }
+
+    function canAccessMeasurements(shopId) {
+      return isShopAccount(shopId) || (
+        isActiveEmployee(shopId) &&
+        getShopMemberData(shopId, request.auth.uid).permissions.measurements == true
+      );
+    }
+
+    function canAccessOrders(shopId) {
+      return isShopAccount(shopId) || (
+        isActiveEmployee(shopId) &&
+        getShopMemberData(shopId, request.auth.uid).permissions.orders == true
+      );
+    }
+
+    function canAccessPayments(shopId) {
+      return isShopAccount(shopId) || (
+        isActiveEmployee(shopId) &&
+        getShopMemberData(shopId, request.auth.uid).permissions.payments == true
+      );
+    }
+
+    function canAccessReports(shopId) {
+      return isShopAccount(shopId) || (
+        isActiveEmployee(shopId) &&
+        getShopMemberData(shopId, request.auth.uid).permissions.reports == true
+      );
+    }
+
+    // =========================================================
+    // 2. PLATFORM ADMINS DIRECTORY (Read-Only Reference for Owner)
+    // =========================================================
+    match /platform_admins/{adminId} {
+      allow read: if isSuperAdmin() && request.auth.uid == adminId;
+      allow write: if false; // Strict Server/Bootstrap Only
+    }
+
+    // =========================================================
+    // 3. SHOP REGISTRATION REQUESTS (Public Inbound Queue)
+    // =========================================================
+    match /shopRequests/{requestId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+      
+      allow create: if request.resource.data.status == 'PENDING' &&
+                       request.resource.data.ownerName is string &&
+                       request.resource.data.shopName is string &&
+                       request.resource.data.email is string &&
+                       request.resource.data.phone is string &&
+                       (!('assignedShopId' in request.resource.data) || request.resource.data.assignedShopId == null);
+                       
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // =========================================================
+    // 4. GLOBAL USERS DIRECTORY (/users/{userId})
+    // =========================================================
+    match /users/{userId} {
+      // Read: Super Admin, or user reading their own profile, or SHOP reading members of their own shop
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        request.auth.uid == userId ||
+        (resource.data.shopId != null && isShopAccount(resource.data.shopId))
+      );
+
+      // Create:
+      // 1. Super Admin (e.g. creating SHOP during onboarding)
+      // 2. SHOP creating an EMPLOYEE profile inside their own shop
+      // 3. Self-registration with no elevated role or shop assignment
+      allow create: if isSuperAdmin() || (
+        isAuthenticated() && (
+          // SHOP account creating staff in their OWN shop
+          (
+            request.resource.data.shopId != null &&
+            isShopAccount(request.resource.data.shopId) &&
+            request.resource.data.role == 'EMPLOYEE' &&
+            request.resource.data.createdBy == request.auth.uid
+          ) ||
+          // Public signup placeholder (no role, no shopId, inactive)
+          (
+            request.auth.uid == userId &&
+            (!('role' in request.resource.data) || request.resource.data.role == null || request.resource.data.role == 'USER') &&
+            (!('shopId' in request.resource.data) || request.resource.data.shopId == null) &&
+            (!('isActive' in request.resource.data) || request.resource.data.isActive == false)
+          )
+        )
+      );
+
+      // Update:
+      // 1. Super Admin: full access
+      // 2. SHOP account: managing employees in their own shop (cannot change shopId or createdBy)
+      // 3. User self-update: only basic personal info, strictly forbidden from changing role, shopId, permissions, isActive, email, createdBy
+      allow update: if isSuperAdmin() || (
+        isAuthenticated() && (
+          // SHOP owner updating staff in their shop
+          (
+            resource.data.shopId != null &&
+            isShopAccount(resource.data.shopId) &&
+            request.resource.data.shopId == resource.data.shopId &&
+            request.resource.data.role == 'EMPLOYEE' &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+          ) ||
+          // Self update: cannot escalate privileges, change shop, permissions, or activation
+          (
+            request.auth.uid == userId &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'role', 'shopId', 'permissions', 'isActive', 'email', 'createdBy'
+            ])
+          )
+        )
+      );
+
+      // Delete: Super Admin or SHOP account for their own employees
+      allow delete: if isSuperAdmin() || (
+        isAuthenticated() && resource.data.shopId != null && isShopAccount(resource.data.shopId) && request.auth.uid != userId
+      );
+    }
+
+    // =========================================================
+    // 5. SHOPS & TENANT ISOLATED DATA (/shops/{shopId})
+    // =========================================================
+    match /shops/{shopId} {
+      // Read: Super Admin, SHOP, or active member of this shop
+      allow read: if isSuperAdmin() || isShopMember(shopId);
+
+      // Shop creation / deletion: STRICTLY Super Admin
+      allow create, delete: if isSuperAdmin();
+
+      // Shop updates: Super Admin full, SHOP can update profile/settings but cannot change critical identity keys
+      allow update: if isSuperAdmin() || (
+        isShopAccount(shopId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'ownerUid', 'shopId', 'createdAt'])
+      );
+
+      // 5.1 Shop Staff Subcollection (/shops/{shopId}/users/{userId})
+      match /users/{userId} {
+        allow read: if isSuperAdmin() || isShopAccount(shopId) || (isAuthenticated() && request.auth.uid == userId);
+        
+        // Only Super Admin or SHOP can add staff (as EMPLOYEE only)
+        allow create: if isSuperAdmin() || (
+          isShopAccount(shopId) &&
+          request.resource.data.role == 'EMPLOYEE' &&
+          request.resource.data.shopId == shopId &&
+          request.resource.data.createdBy == request.auth.uid
+        );
+        
+        // Updates: SHOP can modify employee permissions / active status, user cannot escalate
+        allow update: if isSuperAdmin() || (
+          isShopAccount(shopId) &&
+          request.resource.data.shopId == shopId &&
+          request.resource.data.role == 'EMPLOYEE' &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+        ) || (
+          request.auth.uid == userId &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'role', 'shopId', 'permissions', 'isActive', 'email', 'createdBy'
+          ])
+        );
+        
+        allow delete: if isSuperAdmin() || (isShopAccount(shopId) && request.auth.uid != userId);
+      }
+
+      // 5.2 Customers Collection (/shops/{shopId}/customers/{customerId})
+      match /customers/{customerId} {
+        allow read, create, update: if canAccessCustomers(shopId);
+        allow delete: if isShopAccount(shopId);
+
+        // Measurements Subcollection (/shops/{shopId}/customers/{customerId}/measurements/{measurementId})
+        match /measurements/{measurementId} {
+          allow read, create, update: if canAccessMeasurements(shopId);
+          allow delete: if isShopAccount(shopId);
+        }
+      }
+
+      // 5.3 Orders Collection (/shops/{shopId}/orders/{orderId})
+      match /orders/{orderId} {
+        allow read, create, update: if canAccessOrders(shopId);
+        allow delete: if isShopAccount(shopId);
+      }
+
+      // 5.4 Payments Collection (/shops/{shopId}/payments/{paymentId})
+      match /payments/{paymentId} {
+        allow read, create, update: if canAccessPayments(shopId);
+        allow delete: if isShopAccount(shopId);
+      }
+
+      // 5.9 Refunds Collection (/shops/{shopId}/refunds/{refundId})
+      match /refunds/{refundId} {
+        // Read allowed for users with Payments or Reports permissions
+        allow read: if canAccessPayments(shopId) || canAccessReports(shopId);
+
+        // Create allowed only for users with Payments permission with data validation
+        allow create: if canAccessPayments(shopId) &&
+                         request.resource.data.amount is number &&
+                         request.resource.data.amount > 0 &&
+                         request.resource.data.orderId is string &&
+                         request.resource.data.shopId == shopId &&
+                         request.resource.data.customerId is string &&
+                         request.resource.data.createdAt is string;
+
+        // Strictly immutable for financial audit trail
+        allow update: if false;
+
+        // Delete forbidden for ordinary users, restricted to Super Admin only
+        allow delete: if isSuperAdmin();
+      }
+
+      // 5.5 Fabrics / Inventory (/shops/{shopId}/fabrics/{fabricId})
+      // Read: Active employees or SHOP (needed during tailoring/order entry)
+      // Write: STRICTLY SHOP and SUPER_ADMIN in V1
+      match /fabrics/{fabricId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopAccount(shopId);
+      }
+
+      // 5.6 Reports / Analytics
+      match /reports/{reportId} {
+        allow read: if canAccessReports(shopId);
+        allow write: if isShopAccount(shopId);
+      }
+
+      // 5.7 Catalog items
+      match /catalog/{itemId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopAccount(shopId);
+      }
+
+      // 5.8 Shop Settings
+      match /settings/{settingId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopAccount(shopId);
+      }
+    }
+  }
+}

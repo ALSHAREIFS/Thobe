@@ -1,0 +1,217 @@
+{
+  "entities": {
+    "PlatformAdmin": {
+      "title": "PlatformAdmin",
+      "description": "Thobi SaaS Platform Super Admin accounts with global administrative oversight",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN"] },
+        "createdAt": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["adminId", "email", "fullName", "role", "createdAt", "isActive"]
+    },
+    "ShopRequest": {
+      "title": "ShopRequest",
+      "description": "Public registration request submitted by prospective shop owners pending Super Admin review",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "shopName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "city": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "assignedShopId": { "type": "string" },
+        "assignedOwnerUid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "reviewedAt": { "type": "string" },
+        "reviewedBy": { "type": "string" },
+        "rejectionReason": { "type": "string" }
+      },
+      "required": ["requestId", "ownerName", "shopName", "email", "phone", "city", "status", "createdAt"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Isolated tenant shop entity containing workspace configuration and lifecycle status",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string" },
+        "name": { "type": "string" },
+        "shopName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "phone": { "type": "string" },
+        "alternatePhone": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "crNumber": { "type": "string" },
+        "taxNumber": { "type": "string" },
+        "vatNumber": { "type": "string" },
+        "currency": { "type": "string" },
+        "defaultDeliveryDays": { "type": "number" },
+        "termsAndConditions": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "SUSPENDED", "CANCELLED"] },
+        "ownerUid": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["shopId", "name", "phone", "city", "status", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile associated with a specific tenant shop or platform admin role",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "uid": { "type": "string" },
+        "shopId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "OWNER", "MANAGER", "EMPLOYEE"] },
+        "phone": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["userId", "fullName", "email", "role", "isActive", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Tenant shop customer with profile and measurement history",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "shopId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "alternatePhone": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "totalOrdersCount": { "type": "number" },
+        "totalSpent": { "type": "number" },
+        "latestMeasurementId": { "type": "string" }
+      },
+      "required": ["customerId", "shopId", "fullName", "phone", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Custom tailoring order with detailed garment specs, pricing, and lifecycle tracking",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "shopId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "MEASURED", "CUTTING", "SEWING", "READY", "DELIVERED", "CANCELLED"] },
+        "garmentType": { "type": "string" },
+        "quantity": { "type": "number" },
+        "orderDate": { "type": "string" },
+        "deliveryDate": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["orderId", "orderNumber", "shopId", "customerId", "customerName", "customerPhone", "status", "quantity", "orderDate", "deliveryDate", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment receipt associated with an order and customer",
+      "type": "object",
+      "properties": {
+        "paymentId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "shopId": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["cash", "card", "bank_transfer", "stc_pay", "other"] },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["paymentId", "orderId", "orderNumber", "customerId", "shopId", "amount", "method", "createdAt"]
+    },
+    "Refund": {
+      "title": "Refund",
+      "description": "Refund disbursement document associated with a cancelled order and customer",
+      "type": "object",
+      "properties": {
+        "refundId": { "type": "string" },
+        "shopId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["cash", "card", "bank_transfer", "stc_pay"] },
+        "reason": { "type": "string" },
+        "recordedBy": { "type": "string" },
+        "recordedByUid": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["refundId", "shopId", "orderId", "orderNumber", "customerId", "amount", "paymentMethod", "recordedBy", "recordedByUid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/platform_admins/{adminId}": {
+      "schema": "PlatformAdmin",
+      "description": "List of authorized Super Admin user identifiers for Thobi SaaS platform governance"
+    },
+    "/shopRequests/{requestId}": {
+      "schema": "ShopRequest",
+      "description": "Inbound shop creation requests from prospective clients awaiting Super Admin approval"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Global user identity lookup routing users to their assigned tenant shop"
+    },
+    "/shops/{shopId}": {
+      "schema": "Shop",
+      "description": "Root tenant configuration document storing shop metadata and operational status"
+    },
+    "/shops/{shopId}/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Staff roster within an individual shop tenant"
+    },
+    "/shops/{shopId}/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Client directory isolated to the specific shop tenant"
+    },
+    "/shops/{shopId}/customers/{customerId}/measurements/{measurementId}": {
+      "schema": "Measurement",
+      "description": "Customer body measurements records"
+    },
+    "/shops/{shopId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Tailoring orders strictly isolated within the shop tenant"
+    },
+    "/shops/{shopId}/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment receipts isolated within the shop tenant"
+    },
+    "/shops/{shopId}/refunds/{refundId}": {
+      "schema": "Refund",
+      "description": "Refund receipts isolated within the shop tenant for audit trail"
+    },
+    "/shops/{shopId}/catalog/{itemId}": {
+      "schema": "CatalogItem",
+      "description": "Shop fabric, collar, pocket, and customization catalog"
+    },
+    "/shops/{shopId}/settings/{settingId}": {
+      "schema": "ShopSettings",
+      "description": "Shop localized parameters and configuration"
+    }
+  }
+}
