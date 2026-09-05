@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@layer utilities {
+  .dir-ltr {
+    direction: ltr !important;
+  }
+}
+
+/* Ensure technical inputs naturally render LTR with left alignment */
+input[type="email"],
+input[type="tel"],
+input[type="password"] {
+  direction: ltr;
+  text-align: left;
+}
+
 @layer base {
   body {
     font-family: 'Tajawal', 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;

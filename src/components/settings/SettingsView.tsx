@@ -296,9 +296,10 @@ export const SettingsView: React.FC = () => {
             <input
               type="tel"
               required
+              dir="ltr"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 font-bold focus:bg-white focus:border-[#1A365D] focus:outline-none dir-ltr text-left"
+              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 font-bold focus:bg-white focus:border-[#1A365D] focus:outline-none text-left"
             />
           </div>
 
@@ -342,10 +343,11 @@ export const SettingsView: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1.5">الرقم الضريبي (VAT)</label>
             <input
               type="text"
+              dir="ltr"
               value={vatNumber}
               onChange={(e) => setVatNumber(e.target.value)}
               placeholder="3000xxxxxxxx0003"
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:border-[#1A365D] focus:outline-none dir-ltr text-left"
+              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:border-[#1A365D] focus:outline-none text-left"
             />
           </div>
 
@@ -353,10 +355,11 @@ export const SettingsView: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1.5">رقم السجل التجاري (CR)</label>
             <input
               type="text"
+              dir="ltr"
               value={crNumber}
               onChange={(e) => setCrNumber(e.target.value)}
               placeholder="1010xxxxxx"
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:border-[#1A365D] focus:outline-none dir-ltr text-left"
+              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:border-[#1A365D] focus:outline-none text-left"
             />
           </div>
         </div>
@@ -455,8 +458,8 @@ export const SettingsView: React.FC = () => {
                         </div>
 
                         <div className="text-[11px] text-slate-400 mt-0.5 flex flex-wrap items-center gap-3">
-                          <span className="dir-ltr text-right">{emp.email}</span>
-                          {emp.phone && <span>• {emp.phone}</span>}
+                          <span dir="ltr" className="text-right">{emp.email}</span>
+                          {emp.phone && <span dir="ltr">• {emp.phone}</span>}
                         </div>
                       </div>
                     </div>
@@ -584,14 +587,14 @@ export const SettingsView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <span className="text-slate-500 block mb-0.5">معرف المتجر في السحابة (Shop Tenant ID):</span>
-              <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-block dir-ltr text-left">
+              <span dir="ltr" className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-block text-left">
                 {currentShop?.shopId || 'غير محدد'}
               </span>
             </div>
 
             <div>
               <span className="text-slate-500 block mb-0.5">معرف المستخدم الحالي (User UID):</span>
-              <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-block dir-ltr text-left">
+              <span dir="ltr" className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-block text-left">
                 {currentUser?.userId || 'غير محدد'}
               </span>
             </div>
@@ -648,10 +651,11 @@ export const SettingsView: React.FC = () => {
                   <input
                     type="email"
                     required
+                    dir="ltr"
                     value={empEmail}
                     onChange={(e) => setEmpEmail(e.target.value)}
                     placeholder="tailor@thobi.sa"
-                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] dir-ltr text-left"
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] text-left"
                   />
                 </div>
 
@@ -660,10 +664,11 @@ export const SettingsView: React.FC = () => {
                   <input
                     type="tel"
                     required
+                    dir="ltr"
                     value={empPhone}
                     onChange={(e) => setEmpPhone(e.target.value)}
                     placeholder="054xxxxxxx"
-                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] dir-ltr text-left"
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] text-left"
                   />
                 </div>
               </div>
@@ -673,10 +678,11 @@ export const SettingsView: React.FC = () => {
                 <input
                   type="password"
                   required
+                  dir="ltr"
                   value={empPassword}
                   onChange={(e) => setEmpPassword(e.target.value)}
                   placeholder="6 خانات على الأقل"
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] dir-ltr text-left"
+                  className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:border-[#1A365D] text-left"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   سيستخدم الموظف هذا البريد وكلمة المرور لتسجيل الدخول إلى المتجر مباشرة.

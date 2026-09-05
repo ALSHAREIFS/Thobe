@@ -645,10 +645,11 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                       <input
                         type="tel"
                         required
+                        dir="ltr"
                         value={newCustPhone}
                         onChange={(e) => setNewCustPhone(e.target.value)}
                         placeholder="0501234567"
-                        className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 font-bold focus:border-[#1A365D] focus:outline-none text-left dir-ltr"
+                        className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 font-bold focus:border-[#1A365D] focus:outline-none text-left"
                       />
                     </div>
 

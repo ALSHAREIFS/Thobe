@@ -71,10 +71,11 @@ export const OnboardingShopModal: React.FC = () => {
               <input
                 type="tel"
                 required
+                dir="ltr"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="0501234567"
-                className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 dir-ltr text-left"
+                className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 text-left"
               />
             </div>
 

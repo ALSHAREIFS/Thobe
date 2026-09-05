@@ -220,10 +220,11 @@ export const AuthPage: React.FC = () => {
                   <input
                     type="email"
                     required
+                    dir="ltr"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder="name@tailor.sa"
-                    className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] focus:ring-1 focus:ring-[#1A365D] shadow-sm dir-ltr text-left font-mono"
+                    className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] focus:ring-1 focus:ring-[#1A365D] shadow-sm text-left font-mono"
                   />
                 </div>
               </div>
@@ -247,10 +248,11 @@ export const AuthPage: React.FC = () => {
                   <input
                     type="password"
                     required
+                    dir="ltr"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] focus:ring-1 focus:ring-[#1A365D] shadow-sm dir-ltr text-left font-mono"
+                    className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] focus:ring-1 focus:ring-[#1A365D] shadow-sm text-left font-mono"
                   />
                 </div>
               </div>
@@ -382,10 +384,11 @@ export const AuthPage: React.FC = () => {
                         <input
                           type="tel"
                           required
+                          dir="ltr"
                           value={ownerPhone}
                           onChange={(e) => setOwnerPhone(e.target.value)}
                           placeholder="05XXXXXXXX"
-                          className="w-full pr-9 pl-3 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] dir-ltr text-left font-mono"
+                          className="w-full pr-9 pl-3 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] text-left font-mono"
                         />
                       </div>
                     </div>
@@ -397,10 +400,11 @@ export const AuthPage: React.FC = () => {
                         <input
                           type="email"
                           required
+                          dir="ltr"
                           value={ownerEmail}
                           onChange={(e) => setOwnerEmail(e.target.value)}
                           placeholder="owner@tailor.sa"
-                          className="w-full pr-9 pl-3 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] dir-ltr text-left font-mono"
+                          className="w-full pr-9 pl-3 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] text-left font-mono"
                         />
                       </div>
                     </div>
@@ -468,10 +472,11 @@ export const AuthPage: React.FC = () => {
                       <input
                         type="email"
                         required
+                        dir="ltr"
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         placeholder="name@tailor.sa"
-                        className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] shadow-sm dir-ltr text-left font-mono"
+                        className="w-full pr-10 pl-4 py-3 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] shadow-sm text-left font-mono"
                       />
                     </div>
                   </div>

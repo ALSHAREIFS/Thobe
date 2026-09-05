@@ -579,8 +579,8 @@ export const PlatformAdminDashboard: React.FC = () => {
                           )}
                         </td>
                         <td className="p-3.5 text-slate-300 font-bold">{req.ownerName}</td>
-                        <td className="p-3.5 font-mono text-slate-400 dir-ltr text-right">{req.email}</td>
-                        <td className="p-3.5 font-mono text-slate-300 dir-ltr text-right">{req.phone}</td>
+                        <td dir="ltr" className="p-3.5 font-mono text-slate-400 text-right">{req.email}</td>
+                        <td dir="ltr" className="p-3.5 font-mono text-slate-300 text-right">{req.phone}</td>
                         <td className="p-3.5 text-slate-300">{req.city}</td>
                         <td className="p-3.5 text-slate-400">
                           {new Date(req.createdAt).toLocaleDateString('ar-SA')}
@@ -719,13 +719,13 @@ export const PlatformAdminDashboard: React.FC = () => {
                         {shop.ownerEmail && (
                           <div className="flex items-center justify-between text-slate-400">
                             <span>البريد:</span>
-                            <span className="text-slate-300 font-mono text-[11px] dir-ltr">{shop.ownerEmail}</span>
+                            <span dir="ltr" className="text-slate-300 font-mono text-[11px]">{shop.ownerEmail}</span>
                           </div>
                         )}
                         {shop.phone && (
                           <div className="flex items-center justify-between text-slate-400">
                             <span>الجوال:</span>
-                            <span className="text-slate-300 font-mono text-[11px] dir-ltr">{shop.phone}</span>
+                            <span dir="ltr" className="text-slate-300 font-mono text-[11px]">{shop.phone}</span>
                           </div>
                         )}
                       </div>
@@ -844,10 +844,11 @@ export const PlatformAdminDashboard: React.FC = () => {
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">السجل التجاري (اختياري)</label>
                     <input
                       type="text"
+                      dir="ltr"
                       value={manualCrNumber}
                       onChange={(e) => setManualCrNumber(e.target.value)}
                       placeholder="1010000000"
-                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 dir-ltr text-left"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 text-left"
                     />
                   </div>
                 </div>
@@ -878,10 +879,11 @@ export const PlatformAdminDashboard: React.FC = () => {
                     <input
                       type="tel"
                       required
+                      dir="ltr"
                       value={manualOwnerPhone}
                       onChange={(e) => setManualOwnerPhone(e.target.value)}
                       placeholder="0501234567"
-                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 dir-ltr text-left font-mono"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 text-left font-mono"
                     />
                   </div>
 
@@ -890,10 +892,11 @@ export const PlatformAdminDashboard: React.FC = () => {
                     <input
                       type="email"
                       required
+                      dir="ltr"
                       value={manualOwnerEmail}
                       onChange={(e) => setManualOwnerEmail(e.target.value)}
                       placeholder="owner@asala-tailor.sa"
-                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 dir-ltr text-left"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 text-left"
                     />
                   </div>
 
@@ -902,9 +905,10 @@ export const PlatformAdminDashboard: React.FC = () => {
                     <input
                       type="text"
                       required
+                      dir="ltr"
                       value={manualOwnerPassword}
                       onChange={(e) => setManualOwnerPassword(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 dir-ltr text-left font-mono"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 text-left font-mono"
                     />
                   </div>
                 </div>
@@ -1015,7 +1019,7 @@ export const PlatformAdminDashboard: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">البريد الإلكتروني:</span>
-                <span className="text-white font-mono dir-ltr">{approvingRequest.email}</span>
+                <span dir="ltr" className="text-white font-mono">{approvingRequest.email}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">المدينة:</span>
@@ -1033,9 +1037,10 @@ export const PlatformAdminDashboard: React.FC = () => {
                   <input
                     type="text"
                     required
+                    dir="ltr"
                     value={initialPassword}
                     onChange={(e) => setInitialPassword(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white font-mono dir-ltr text-left"
+                    className="w-full pr-10 pl-4 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white font-mono text-left"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
@@ -1086,11 +1091,11 @@ export const PlatformAdminDashboard: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">البريد الإلكتروني:</span>
-                <span className="text-emerald-400 font-mono dir-ltr">{generatedCredentials.email}</span>
+                <span dir="ltr" className="text-emerald-400 font-mono">{generatedCredentials.email}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">كلمة المرور:</span>
-                <span className="text-amber-400 font-mono dir-ltr">{generatedCredentials.password}</span>
+                <span dir="ltr" className="text-amber-400 font-mono">{generatedCredentials.password}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">معرف المتجر (Shop ID):</span>

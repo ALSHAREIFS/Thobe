@@ -343,10 +343,11 @@ export const CustomerListView: React.FC = () => {
                 <input
                   type="tel"
                   required
+                  dir="ltr"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="05xxxxxxxx"
-                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 rounded-xl border border-stone-300 font-bold focus:bg-white focus:border-amber-700 focus:outline-none dir-ltr text-left"
+                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 rounded-xl border border-stone-300 font-bold focus:bg-white focus:border-amber-700 focus:outline-none text-left"
                 />
               </div>
 

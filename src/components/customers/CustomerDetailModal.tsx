@@ -200,9 +200,10 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <label className="font-bold text-stone-700 block mb-1">رقم الجوال:</label>
               <input
                 type="text"
+                dir="ltr"
                 value={editPhone}
                 onChange={(e) => setEditPhone(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white rounded-lg border border-stone-300 font-bold dir-ltr text-left"
+                className="w-full px-3 py-1.5 bg-white rounded-lg border border-stone-300 font-bold text-left"
               />
             </div>
             <div>

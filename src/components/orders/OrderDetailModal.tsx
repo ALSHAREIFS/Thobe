@@ -339,7 +339,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-stone-400 mt-1">
-                العميل: {order.customerName} ({order.customerPhone})
+                العميل: {order.customerName} (<span dir="ltr">{order.customerPhone}</span>)
               </p>
             </div>
           </div>
