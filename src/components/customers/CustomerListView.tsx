@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export const CustomerListView: React.FC = () => {
-  const { customers, orders, createCustomer, deleteCustomer, setActiveTab, setSelectedCustomerId, setRepeatOrderTemplate, setOrderToPrint, startEditOrder } = useShop();
+  const { customers, orders, createCustomer, deleteCustomer, setActiveTab, setSelectedCustomerId, setRepeatOrderTemplate, setOrderToPrint, startEditOrder, showToast } = useShop();
   const { hasPermission } = useAuth();
 
   const canOrders = hasPermission('orders');
@@ -65,9 +65,9 @@ export const CustomerListView: React.FC = () => {
 
   const filtered = customers.filter(
     (c) =>
-      c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      (c.address && c.address.toLowerCase().includes(search.toLowerCase()))
+      (c?.fullName || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.phone || '').includes(search) ||
+      (c?.address && c.address.toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -107,6 +107,13 @@ export const CustomerListView: React.FC = () => {
   const handleConfirmDeleteCustomer = async () => {
     if (!customerToDelete || isDeletingCustomer) return;
 
+    const hasOrders = orders.some((o) => o.customerId === customerToDelete.customerId);
+    if (hasOrders) {
+      showToast('لا يمكن حذف هذا العميل لوجود طلبات مسجلة باسمه. يمكنك الاحتفاظ بسجله بدلًا من حذفه.', 'error');
+      setCustomerToDelete(null);
+      return;
+    }
+
     setIsDeletingCustomer(true);
     try {
       await deleteCustomer(customerToDelete.customerId);
@@ -116,6 +123,7 @@ export const CustomerListView: React.FC = () => {
       setCustomerToDelete(null);
     } catch (err: any) {
       console.error('Error deleting customer:', err);
+      showToast(err.message || 'حدث خطأ أثناء محاولة حذف العميل', 'error');
     } finally {
       setIsDeletingCustomer(false);
     }
@@ -416,15 +424,23 @@ export const CustomerListView: React.FC = () => {
                 هل أنت متأكد من حذف العميل <span className="text-rose-700 underline underline-offset-4">"{customerToDelete.fullName}"</span>؟
               </p>
 
-              {orders.filter((o) => o.customerId === customerToDelete.customerId).length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed font-semibold">
-                  ⚠️ تنبيه: العميل لديه ({orders.filter((o) => o.customerId === customerToDelete.customerId).length}) طلبات مسجلة في المتجر. لن يتم حذف طلباته السابقة حفاظاً على السجلات المالية والمحاسبية.
+              {orders.filter((o) => o.customerId === customerToDelete.customerId).length > 0 ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 leading-relaxed font-bold flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black text-rose-800 text-sm">
+                      لا يمكن حذف هذا العميل لوجود طلبات مسجلة باسمه. يمكنك الاحتفاظ بسجله بدلًا من حذفه.
+                    </p>
+                    <p className="text-stone-600 mt-1 font-normal text-xs">
+                      يحتوي سجله على ({orders.filter((o) => o.customerId === customerToDelete.customerId).length}) طلبات مسجلة للحفاظ على التاريخ المالي والمحاسبي.
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  سيتم حذف بطاقة العميل وقياساته الخاصة من المتجر بشكل نهائي.
+                </p>
               )}
-
-              <p className="text-xs text-stone-500 leading-relaxed">
-                سيتم حذف بطاقة العميل وقياساته الخاصة من المتجر بشكل نهائي.
-              </p>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
@@ -433,26 +449,28 @@ export const CustomerListView: React.FC = () => {
                   onClick={() => setCustomerToDelete(null)}
                   className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  إلغاء
+                  {orders.filter((o) => o.customerId === customerToDelete.customerId).length > 0 ? 'إغلاق' : 'إلغاء'}
                 </button>
-                <button
-                  type="button"
-                  disabled={isDeletingCustomer}
-                  onClick={handleConfirmDeleteCustomer}
-                  className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  {isDeletingCustomer ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      <span>جارٍ الحذف...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف العميل</span>
-                    </>
-                  )}
-                </button>
+                {orders.filter((o) => o.customerId === customerToDelete.customerId).length === 0 && (
+                  <button
+                    type="button"
+                    disabled={isDeletingCustomer}
+                    onClick={handleConfirmDeleteCustomer}
+                    className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    {isDeletingCustomer ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>جارٍ الحذف...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>حذف العميل</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

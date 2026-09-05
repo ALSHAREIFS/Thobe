@@ -4,15 +4,16 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import appletConfig from '../../firebase-applet-config.json';
 
-const env = (import.meta as any).env || {};
+const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || {};
+const procEnv = (typeof process !== 'undefined' && process.env) || {};
 
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || appletConfig.apiKey || '',
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || appletConfig.authDomain || 'thobi-be88b.firebaseapp.com',
-  projectId: env.VITE_FIREBASE_PROJECT_ID || appletConfig.projectId || 'thobi-be88b',
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket || 'thobi-be88b.firebasestorage.app',
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId || '',
-  appId: env.VITE_FIREBASE_APP_ID || appletConfig.appId || '',
+  apiKey: env.VITE_FIREBASE_API_KEY || procEnv.VITE_FIREBASE_API_KEY || appletConfig.apiKey || '',
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || procEnv.VITE_FIREBASE_AUTH_DOMAIN || appletConfig.authDomain || 'thobi-be88b.firebaseapp.com',
+  projectId: env.VITE_FIREBASE_PROJECT_ID || procEnv.VITE_FIREBASE_PROJECT_ID || appletConfig.projectId || 'thobi-be88b',
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || procEnv.VITE_FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket || 'thobi-be88b.firebasestorage.app',
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || procEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId || '',
+  appId: env.VITE_FIREBASE_APP_ID || procEnv.VITE_FIREBASE_APP_ID || appletConfig.appId || '',
 };
 
 // Initialize Firebase safely

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Order, Payment, PAYMENT_METHOD_MAP } from '../../types';
+import { Order, Payment, Refund, PAYMENT_METHOD_MAP } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 import { TailorService } from '../../services/firebaseService';
@@ -29,25 +29,26 @@ interface PrintTailoringSheetProps {
 
 export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order, onClose }) => {
   const { currentShop } = useAuth();
-  const { payments: contextPayments } = useShop();
+  const { payments: contextPayments, refunds: contextRefunds } = useShop();
   const [directPayments, setDirectPayments] = useState<Payment[]>([]);
+  const [directRefunds, setDirectRefunds] = useState<Refund[]>([]);
   const [showNotification, setShowNotification] = useState(true);
 
-  // Fetch real payment documents directly from Firestore for this order
+  // Fetch real payment and refund documents directly from Firestore for this order
   useEffect(() => {
     const shopId = currentShop?.shopId || order.shopId;
     if (!shopId || !order.orderId) return;
 
     let isMounted = true;
-    TailorService.getPayments(shopId, order.orderId)
-      .then((pays) => {
-        if (isMounted) {
-          setDirectPayments(pays);
-        }
-      })
-      .catch((err) => {
-        console.warn('Could not fetch direct order payments for print sheet:', err);
-      });
+    Promise.all([
+      TailorService.getPayments(shopId, order.orderId).catch(() => []),
+      TailorService.getRefunds(shopId, order.orderId).catch(() => []),
+    ]).then(([pays, refs]) => {
+      if (isMounted) {
+        setDirectPayments(pays);
+        setDirectRefunds(refs);
+      }
+    });
 
     return () => {
       isMounted = false;
@@ -68,6 +69,28 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
   const orderPayments = Array.from(orderPaymentsMap.values()).sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
+
+  // Combine context and direct refunds
+  const allCandidateRefunds = [...directRefunds, ...(contextRefunds || []).filter(
+    (ref) => ref.orderId === order.orderId || (ref.orderNumber && ref.orderNumber === order.orderNumber)
+  )];
+
+  const orderRefundsMap = new Map<string, Refund>();
+  allCandidateRefunds.forEach((r) => {
+    if (r.refundId) {
+      orderRefundsMap.set(r.refundId, r);
+    }
+  });
+  const orderRefunds = Array.from(orderRefundsMap.values()).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  // Source of Truth Financial Calculations
+  const grossPaid = orderPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0);
+  const totalRefunds = orderRefunds.reduce((acc, ref) => acc + (ref.amount || 0), 0);
+  const netPaid = Math.max(0, grossPaid - totalRefunds);
+  const totalAmount = order.pricing?.totalAmount || 0;
+  const remainingAmount = Math.max(0, totalAmount - netPaid);
 
   const paymentMethodsSummary = orderPayments.length > 0
     ? Array.from(new Set(orderPayments.map((pay) => PAYMENT_METHOD_MAP[pay.method] || pay.method))).join(' + ')
@@ -163,16 +186,22 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
               ث
             </div>
             <div>
-              <h1 className="text-xl font-black text-stone-950">{currentShop.shopName}</h1>
+              <h1 className="text-xl font-black text-stone-950">{currentShop?.shopName || currentShop?.name || 'المقص الذهبي للخياطة'}</h1>
               <p className="text-xs text-stone-600 font-bold">للخياطة الرجالية الراقية وتفصيل الثياب</p>
               <div className="flex items-center gap-3 text-[10px] text-stone-500 mt-1">
-                <span className="flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-stone-400" /> {currentShop.phone}
-                </span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-stone-400" /> {currentShop.address}
-                </span>
-                {currentShop.vatNumber && <span>الرقم الضريبي: {currentShop.vatNumber}</span>}
+                {currentShop?.phone && (
+                  <span className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-stone-400" /> {currentShop.phone}
+                  </span>
+                )}
+                {currentShop?.address && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-stone-400" /> {currentShop.address}
+                  </span>
+                )}
+                {(currentShop?.vatNumber || currentShop?.taxNumber) && (
+                  <span>الرقم الضريبي: {currentShop.vatNumber || currentShop.taxNumber}</span>
+                )}
               </div>
             </div>
           </div>
@@ -411,12 +440,14 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             <div className="grid grid-cols-3 gap-3 text-center flex-1">
               <div className="bg-stone-100 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
                 <span className="text-[10px] text-stone-500 font-bold block">إجمالي المبلغ</span>
-                <span className="font-black text-stone-950 text-sm">{p.totalAmount} ر.س</span>
+                <span className="font-black text-stone-950 text-sm">{totalAmount} ر.س</span>
               </div>
               <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-300 flex flex-col justify-center">
-                <span className="text-[10px] text-emerald-800 font-bold block">العربون المدفوع</span>
-                <span className="font-black text-emerald-950 text-sm">{p.paidAmount} ر.س</span>
-                {p.paidAmount > 0 ? (
+                <span className="text-[10px] text-emerald-800 font-bold block">
+                  {orderPayments.length > 1 ? 'إجمالي المقبوض' : 'العربون المدفوع'}
+                </span>
+                <span className="font-black text-emerald-950 text-sm">{grossPaid} ر.س</span>
+                {grossPaid > 0 ? (
                   <span className="text-[9px] text-emerald-900 font-black block mt-0.5 bg-emerald-100/90 px-1 py-0.5 rounded border border-emerald-200">
                     طريقة الدفع: {orderPayments[0] ? (PAYMENT_METHOD_MAP[orderPayments[0].method] || orderPayments[0].method) : (paymentMethodsSummary || 'نقدي')}
                   </span>
@@ -428,7 +459,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
               </div>
               <div className="bg-amber-50 p-2 rounded-lg border border-amber-300 flex flex-col justify-center">
                 <span className="text-[10px] text-amber-900 font-bold block">المتبقي للاستلام</span>
-                <span className="font-black text-amber-950 text-sm">{p.remainingAmount} ر.س</span>
+                <span className="font-black text-amber-950 text-sm">{remainingAmount} ر.س</span>
               </div>
             </div>
 

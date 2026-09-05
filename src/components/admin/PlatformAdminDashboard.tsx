@@ -57,6 +57,13 @@ export const PlatformAdminDashboard: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Status Toggle Modal State (Suspend / Reactivate)
+  const [statusModalShop, setStatusModalShop] = useState<{ shop: Shop; nextStatus: ShopStatus } | null>(null);
+
+  // Reject Request Modal State
+  const [rejectModalRequest, setRejectModalRequest] = useState<ShopRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('لم يستوفِ الشروط المحددة');
+
   // Manual Shop Creation Form
   const [manualShopName, setManualShopName] = useState('');
   const [manualCity, setManualCity] = useState('الرياض');
@@ -127,12 +134,18 @@ export const PlatformAdminDashboard: React.FC = () => {
     }
   };
 
-  const handleRejectRequest = async (requestId: string) => {
-    const reason = prompt('يرجى كتابة سبب رفض الطلب:') || 'لم يستوفِ الشروط المحددة';
+  const handleOpenRejectModal = (req: ShopRequest) => {
+    setRejectModalRequest(req);
+    setRejectionReason('لم يستوفِ الشروط والمعايير المحددة');
+  };
+
+  const executeRejectRequest = async () => {
+    if (!rejectModalRequest) return;
     try {
       setIsProcessing(true);
-      await TailorService.rejectShopRequest(requestId, reason);
-      setActionSuccessMessage('تم رفض الطلب وتحديث حالته');
+      await TailorService.rejectShopRequest(rejectModalRequest.requestId, rejectionReason);
+      setActionSuccessMessage(`تم رفض طلب متجر "${rejectModalRequest.shopName}" وتحديث حالته.`);
+      setRejectModalRequest(null);
       await loadPlatformData();
     } catch (err: any) {
       setActionErrorMessage(err.message || 'فشل رفض الطلب');
@@ -141,22 +154,38 @@ export const PlatformAdminDashboard: React.FC = () => {
     }
   };
 
-  const handleToggleShopStatus = async (shopId: string, currentStatus: ShopStatus) => {
-    const nextStatus: ShopStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    const confirmMsg =
-      nextStatus === 'SUSPENDED'
-        ? 'هل أنت متأكد من تعليق هذا المتجر؟ سيتوقف وصول المالك وجميع الموظفين إلى النظام فوراً عبر خادم Firestore.'
-        : 'هل تريد إعادة تفعيل هذا المتجر واستئناف العمليات؟';
+  const handleOpenToggleStatus = (shop: Shop) => {
+    const nextStatus: ShopStatus = shop.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    setStatusModalShop({ shop, nextStatus });
+  };
 
-    if (!window.confirm(confirmMsg)) return;
-
+  const executeToggleShopStatus = async () => {
+    if (!statusModalShop) return;
+    const { shop, nextStatus } = statusModalShop;
     try {
       setIsProcessing(true);
-      await TailorService.adminUpdateShopStatus(shopId, nextStatus);
-      setActionSuccessMessage(`تم تحديث حالة المتجر إلى ${SHOP_STATUS_MAP[nextStatus].label}`);
+      await TailorService.adminUpdateShopStatus(shop.shopId, nextStatus);
+      setActionSuccessMessage(`تم تحديث حالة متجر "${shop.name || shop.shopName}" إلى: ${SHOP_STATUS_MAP[nextStatus].label}`);
+      setStatusModalShop(null);
       await loadPlatformData();
     } catch (err: any) {
+      console.error('Error updating shop status:', err);
       setActionErrorMessage(err.message || 'فشل تحديث حالة المتجر');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResyncShopOwner = async (shop: Shop) => {
+    try {
+      setIsProcessing(true);
+      setActionErrorMessage(null);
+      await TailorService.adminResyncShopOwner(shop.shopId);
+      setActionSuccessMessage(`تمت مزامنة وتثبيت صلاحية المالك (SHOP) لمتجر "${shop.name || shop.shopName}" بنجاح!`);
+      await loadPlatformData();
+    } catch (err: any) {
+      console.error('Error resyncing shop owner:', err);
+      setActionErrorMessage(err.message || 'فشل مزامنة حساب المالك');
     } finally {
       setIsProcessing(false);
     }
@@ -587,7 +616,7 @@ export const PlatformAdminDashboard: React.FC = () => {
                                 <span>موافقة وإنشاء</span>
                               </button>
                               <button
-                                onClick={() => handleRejectRequest(req.requestId)}
+                                onClick={() => handleOpenRejectModal(req)}
                                 className="px-2.5 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold rounded-lg text-xs border border-rose-800/60"
                               >
                                 رفض
@@ -702,9 +731,9 @@ export const PlatformAdminDashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-900 flex items-center gap-2">
+                    <div className="mt-4 pt-3 border-t border-slate-900 flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => handleToggleShopStatus(shop.shopId, shop.status)}
+                        onClick={() => handleOpenToggleStatus(shop)}
                         disabled={isProcessing}
                         className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                           shop.status === 'ACTIVE'
@@ -723,6 +752,16 @@ export const PlatformAdminDashboard: React.FC = () => {
                             <span>إعادة تفعيل</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        onClick={() => handleResyncShopOwner(shop)}
+                        disabled={isProcessing}
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 rounded-xl border border-slate-700 transition-all text-xs font-bold flex items-center gap-1"
+                        title="مزامنة وتثبيت صلاحية المالك (SHOP) في قاعدة البيانات"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>تثبيت المالك</span>
                       </button>
 
                       <button
@@ -1077,6 +1116,138 @@ export const PlatformAdminDashboard: React.FC = () => {
                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
               >
                 إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS TOGGLE CONFIRMATION MODAL (SUSPEND / REACTIVATE) */}
+      {statusModalShop && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                  statusModalShop.nextStatus === 'SUSPENDED'
+                    ? 'bg-rose-950/80 border border-rose-800 text-rose-400'
+                    : 'bg-emerald-950/80 border border-emerald-800 text-emerald-400'
+                }`}
+              >
+                {statusModalShop.nextStatus === 'SUSPENDED' ? (
+                  <PauseCircle className="w-6 h-6" />
+                ) : (
+                  <PlayCircle className="w-6 h-6" />
+                )}
+              </div>
+              <div>
+                <h3 className="font-black text-white text-base">
+                  {statusModalShop.nextStatus === 'SUSPENDED' ? 'تعليق نشاط المتجر' : 'إعادة تفعيل المتجر'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  متجر "{statusModalShop.shop.name || statusModalShop.shop.shopName}"
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs leading-relaxed text-slate-300">
+              {statusModalShop.nextStatus === 'SUSPENDED' ? (
+                <div className="space-y-2">
+                  <p className="text-rose-300 font-bold">
+                    هل أنت متأكد من تعليق هذا المتجر؟
+                  </p>
+                  <p className="text-slate-400 text-[11px]">
+                    سيتم حفظ الحالة فوراً في Firestore ومنع صاحب المتجر وجميع موظفيه من الدخول إلى النظام وإجراء أي عمليات بيع أو تقارير، مع إظهار شاشة التعليق المخصصة.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-emerald-300 font-bold">
+                    هل ترغب في إعادة تفعيل هذا المتجر؟
+                  </p>
+                  <p className="text-slate-400 text-[11px]">
+                    سيتم رفع التعليق واستئناف وصول المالك والموظفين إلى النظام بشكل طبيعي وفوري عبر خادم Firestore.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setStatusModalShop(null)}
+                disabled={isProcessing}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeToggleShopStatus}
+                disabled={isProcessing}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                  statusModalShop.nextStatus === 'SUSPENDED'
+                    ? 'bg-rose-700 hover:bg-rose-600 text-white'
+                    : 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                }`}
+              >
+                {isProcessing
+                  ? 'جاري الحفظ...'
+                  : statusModalShop.nextStatus === 'SUSPENDED'
+                  ? 'تأكيد التعليق'
+                  : 'تأكيد إعادة التفعيل'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT REQUEST MODAL */}
+      {rejectModalRequest && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-white text-base text-rose-400">رفض طلب تسجيل المتجر</h3>
+              <button
+                onClick={() => setRejectModalRequest(null)}
+                disabled={isProcessing}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              أنت على وشك رفض طلب متجر <strong className="text-white">"{rejectModalRequest.shopName}"</strong> المقدم من <strong className="text-white">{rejectModalRequest.ownerName}</strong>.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">سبب الرفض:</label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={3}
+                className="w-full p-3 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                placeholder="اكتب سبب الرفض هنا..."
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setRejectModalRequest(null)}
+                disabled={isProcessing}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeRejectRequest}
+                disabled={isProcessing || !rejectionReason.trim()}
+                className="flex-1 py-2.5 bg-rose-700 hover:bg-rose-600 text-white text-xs font-black rounded-xl shadow-md disabled:opacity-50"
+              >
+                {isProcessing ? 'جاري الحفظ...' : 'تأكيد الرفض'}
               </button>
             </div>
           </div>

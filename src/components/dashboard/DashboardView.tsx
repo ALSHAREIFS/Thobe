@@ -3,6 +3,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
 import { CustomerDetailModal } from '../customers/CustomerDetailModal';
+import { OrderDetailModal } from '../orders/OrderDetailModal';
 import { Customer, Order } from '../../types';
 import {
   Scissors,
@@ -30,6 +31,7 @@ export const DashboardView: React.FC = () => {
     orders,
     customers,
     payments,
+    refunds,
     setActiveTab,
     setOrderToPrint,
     startRepeatOrder,
@@ -40,6 +42,7 @@ export const DashboardView: React.FC = () => {
   const { currentShop, currentUser, hasPermission } = useAuth();
 
   const [selectedCustomerForModal, setSelectedCustomerForModal] = useState<Customer | null>(null);
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
 
   // Permission flags
   const canOrders = hasPermission('orders');
@@ -61,10 +64,14 @@ export const DashboardView: React.FC = () => {
   const totalRevenue = canReports || canPayments
     ? validOrders.reduce((acc, o) => acc + (o.pricing?.totalAmount || 0), 0)
     : 0;
-  const totalPaid = canPayments
+  const grossCollected = canPayments || canReports
     ? payments.reduce((acc, p) => acc + (p.amount || 0), 0)
     : 0;
-  const remainingUnpaid = Math.max(0, totalRevenue - totalPaid);
+  const totalRefunds = canPayments || canReports
+    ? refunds.reduce((acc, r) => acc + (r.amount || 0), 0)
+    : 0;
+  const netCollected = Math.max(0, grossCollected - totalRefunds);
+  const remainingUnpaid = Math.max(0, totalRevenue - netCollected);
 
   // Today / Urgent deliveries
   const todayStr = new Date().toISOString().split('T')[0];
@@ -215,7 +222,22 @@ export const DashboardView: React.FC = () => {
             <div className="mt-3">
               <div className="text-2xl font-black text-slate-900">{totalRevenue} ر.س</div>
               {canPayments && (
-                <div className="text-[11px] text-slate-400 mt-0.5">متبقي غير محصل: {remainingUnpaid} ر.س</div>
+                <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span>تم التحصيل:</span>
+                    <b className="text-emerald-700 font-bold">{netCollected} ر.س</b>
+                  </div>
+                  {totalRefunds > 0 && (
+                    <div className="flex items-center justify-between text-rose-600">
+                      <span>مستردات:</span>
+                      <b className="font-bold">{totalRefunds} ر.س</b>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-stone-500 text-[10px]">
+                    <span>متبقي التحصيل:</span>
+                    <span className="font-bold text-amber-800">{remainingUnpaid} ر.س</span>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -288,8 +310,8 @@ export const DashboardView: React.FC = () => {
                         className="p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-mono font-bold text-xs text-[#1A365D]">
-                            {order.orderNumber.slice(-4)}
+                          <div className="px-2.5 py-1.5 min-w-[76px] rounded-xl bg-white border border-slate-200 flex items-center justify-center font-mono font-bold text-xs text-[#1A365D]">
+                            {order.orderNumber}
                           </div>
                           <div>
                             <div className="font-bold text-xs text-slate-900">{order.customerName}</div>
@@ -313,9 +335,9 @@ export const DashboardView: React.FC = () => {
 
                           <button
                             type="button"
-                            onClick={() => setOrderToPrint(order)}
+                            onClick={() => setSelectedOrderForModal(order)}
                             className="px-2.5 py-1.5 text-xs font-bold text-[#1A365D] hover:text-white bg-blue-50 hover:bg-[#1A365D] rounded-lg border border-blue-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="عرض نموذج وتفاصيل الطلب"
+                            title="عرض تفاصيل الطلب والحالة المالية"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>عرض</span>
@@ -528,6 +550,29 @@ export const DashboardView: React.FC = () => {
           onEditOrder={(order) => {
             startEditOrder(order);
             setSelectedCustomerForModal(null);
+          }}
+        />
+      )}
+
+      {/* Order Detail Modal if opened from Dashboard */}
+      {selectedOrderForModal && (
+        <OrderDetailModal
+          order={selectedOrderForModal}
+          onClose={() => setSelectedOrderForModal(null)}
+          onPrint={() => {
+            const ord = selectedOrderForModal;
+            setSelectedOrderForModal(null);
+            setOrderToPrint(ord);
+          }}
+          onRepeat={() => {
+            const ord = selectedOrderForModal;
+            setSelectedOrderForModal(null);
+            handleRepeatOrder(ord);
+          }}
+          onEdit={() => {
+            const ord = selectedOrderForModal;
+            setSelectedOrderForModal(null);
+            startEditOrder(ord);
           }}
         />
       )}

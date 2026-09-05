@@ -36,19 +36,35 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/shops/$(shopId)/users/$(uid)).data;
     }
 
-    // Check if user is the main SHOP account for this tenant
+    // Check if shop status is ACTIVE in Firestore
+    function isShopActive(shopId) {
+      return exists(/databases/$(database)/documents/shops/$(shopId)) &&
+             get(/databases/$(database)/documents/shops/$(shopId)).data.status == 'ACTIVE';
+    }
+
+    // Check if user is the main SHOP account for this tenant (requires active shop unless super admin)
     function isShopAccount(shopId) {
       return isSuperAdmin() || (
         isAuthenticated() &&
-        hasShopMemberDoc(shopId, request.auth.uid) &&
-        getShopMemberData(shopId, request.auth.uid).role == 'SHOP' &&
-        getShopMemberData(shopId, request.auth.uid).isActive == true
+        isShopActive(shopId) &&
+        (
+          (
+            exists(/databases/$(database)/documents/shops/$(shopId)) &&
+            get(/databases/$(database)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid
+          ) ||
+          (
+            hasShopMemberDoc(shopId, request.auth.uid) &&
+            getShopMemberData(shopId, request.auth.uid).role == 'SHOP' &&
+            getShopMemberData(shopId, request.auth.uid).isActive == true
+          )
+        )
       );
     }
 
-    // Check if user is an active employee belonging to this shop
+    // Check if user is an active employee belonging to this shop (requires active shop)
     function isActiveEmployee(shopId) {
       return isAuthenticated() &&
+             isShopActive(shopId) &&
              hasShopMemberDoc(shopId, request.auth.uid) &&
              getShopMemberData(shopId, request.auth.uid).role == 'EMPLOYEE' &&
              getShopMemberData(shopId, request.auth.uid).isActive == true;
@@ -133,7 +149,8 @@ service cloud.firestore {
       // Create:
       // 1. Super Admin (e.g. creating SHOP during onboarding)
       // 2. SHOP creating an EMPLOYEE profile inside their own shop
-      // 3. Self-registration with no elevated role or shop assignment
+      // 3. Designated shop owner self-initializing their profile
+      // 4. Self-registration placeholder with no elevated role or shop assignment
       allow create: if isSuperAdmin() || (
         isAuthenticated() && (
           // SHOP account creating staff in their OWN shop
@@ -142,6 +159,14 @@ service cloud.firestore {
             isShopAccount(request.resource.data.shopId) &&
             request.resource.data.role == 'EMPLOYEE' &&
             request.resource.data.createdBy == request.auth.uid
+          ) ||
+          // Designated owner initializing their profile
+          (
+            request.auth.uid == userId &&
+            request.resource.data.shopId != null &&
+            exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)) &&
+            get(/databases/$(database)/documents/shops/$(request.resource.data.shopId)).data.ownerUid == request.auth.uid &&
+            request.resource.data.role == 'SHOP'
           ) ||
           // Public signup placeholder (no role, no shopId, inactive)
           (
@@ -156,7 +181,8 @@ service cloud.firestore {
       // Update:
       // 1. Super Admin: full access
       // 2. SHOP account: managing employees in their own shop (cannot change shopId or createdBy)
-      // 3. User self-update: only basic personal info, strictly forbidden from changing role, shopId, permissions, isActive, email, createdBy
+      // 3. Designated owner self-updating profile with SHOP role
+      // 4. User self-update: only basic personal info
       allow update: if isSuperAdmin() || (
         isAuthenticated() && (
           // SHOP owner updating staff in their shop
@@ -167,6 +193,14 @@ service cloud.firestore {
             request.resource.data.role == 'EMPLOYEE' &&
             request.resource.data.createdBy == resource.data.createdBy &&
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+          ) ||
+          // Designated owner self-updating profile to SHOP
+          (
+            request.auth.uid == userId &&
+            resource.data.shopId != null &&
+            exists(/databases/$(database)/documents/shops/$(resource.data.shopId)) &&
+            get(/databases/$(database)/documents/shops/$(resource.data.shopId)).data.ownerUid == request.auth.uid &&
+            request.resource.data.role == 'SHOP'
           ) ||
           // Self update: cannot escalate privileges, change shop, permissions, or activation
           (
@@ -188,8 +222,13 @@ service cloud.firestore {
     // 5. SHOPS & TENANT ISOLATED DATA (/shops/{shopId})
     // =========================================================
     match /shops/{shopId} {
-      // Read: Super Admin, SHOP, or active member of this shop
-      allow read: if isSuperAdmin() || isShopMember(shopId);
+      // Read: Super Admin, or assigned members of this shop, or designated shop owner
+      allow read: if isSuperAdmin() || (
+        isAuthenticated() && (
+          (exists(/databases/$(database)/documents/shops/$(shopId)) && resource.data.ownerUid == request.auth.uid) ||
+          hasShopMemberDoc(shopId, request.auth.uid)
+        )
+      );
 
       // Shop creation / deletion: STRICTLY Super Admin
       allow create, delete: if isSuperAdmin();
@@ -204,21 +243,35 @@ service cloud.firestore {
       match /users/{userId} {
         allow read: if isSuperAdmin() || isShopAccount(shopId) || (isAuthenticated() && request.auth.uid == userId);
         
-        // Only Super Admin or SHOP can add staff (as EMPLOYEE only)
+        // Only Super Admin, SHOP adding staff (as EMPLOYEE only), or designated owner initializing profile
         allow create: if isSuperAdmin() || (
           isShopAccount(shopId) &&
           request.resource.data.role == 'EMPLOYEE' &&
           request.resource.data.shopId == shopId &&
           request.resource.data.createdBy == request.auth.uid
+        ) || (
+          isAuthenticated() &&
+          request.auth.uid == userId &&
+          request.resource.data.role == 'SHOP' &&
+          request.resource.data.shopId == shopId &&
+          exists(/databases/$(database)/documents/shops/$(shopId)) &&
+          get(/databases/$(database)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid
         );
         
-        // Updates: SHOP can modify employee permissions / active status, user cannot escalate
+        // Updates: SHOP can modify employee permissions / active status, or owner updating profile
         allow update: if isSuperAdmin() || (
           isShopAccount(shopId) &&
           request.resource.data.shopId == shopId &&
           request.resource.data.role == 'EMPLOYEE' &&
           request.resource.data.createdBy == resource.data.createdBy &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+        ) || (
+          isAuthenticated() &&
+          request.auth.uid == userId &&
+          request.resource.data.role == 'SHOP' &&
+          request.resource.data.shopId == shopId &&
+          exists(/databases/$(database)/documents/shops/$(shopId)) &&
+          get(/databases/$(database)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid
         ) || (
           request.auth.uid == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -243,14 +296,32 @@ service cloud.firestore {
 
       // 5.3 Orders Collection (/shops/{shopId}/orders/{orderId})
       match /orders/{orderId} {
-        allow read, create, update: if canAccessOrders(shopId);
-        allow delete: if isShopAccount(shopId);
+        allow read, create: if canAccessOrders(shopId);
+        // Prevent unlocking financialLocked from true to false or deleting the field
+        allow update: if isSuperAdmin() || (
+          canAccessOrders(shopId) &&
+          (!('financialLocked' in resource.data) || resource.data.financialLocked != true || (('financialLocked' in request.resource.data) && request.resource.data.financialLocked == true))
+        );
+        // Strict financial integrity: Orders with financialLocked=true or registered payments/refunds CANNOT be deleted
+        allow delete: if (isSuperAdmin() || isShopAccount(shopId)) &&
+                         (!('financialLocked' in resource.data) || resource.data.financialLocked != true) &&
+                         (!('pricing' in resource.data) || !('paidAmount' in resource.data.pricing) || resource.data.pricing.paidAmount <= 0) &&
+                         (!('pricing' in resource.data) || !('refundedAmount' in resource.data.pricing) || resource.data.pricing.refundedAmount <= 0);
       }
 
       // 5.4 Payments Collection (/shops/{shopId}/payments/{paymentId})
       match /payments/{paymentId} {
-        allow read, create, update: if canAccessPayments(shopId);
-        allow delete: if isShopAccount(shopId);
+        allow read: if canAccessPayments(shopId) || canAccessReports(shopId);
+        allow create: if canAccessPayments(shopId) &&
+                         request.resource.data.amount is number &&
+                         request.resource.data.amount > 0 &&
+                         request.resource.data.shopId == shopId &&
+                         request.resource.data.orderId is string &&
+                         request.resource.data.createdAt is string;
+        // Strictly immutable for financial integrity
+        allow update: if false;
+        // Payments cannot be deleted by employees or shops, reserved to Super Admin
+        allow delete: if isSuperAdmin();
       }
 
       // 5.9 Refunds Collection (/shops/{shopId}/refunds/{refundId})
@@ -264,7 +335,6 @@ service cloud.firestore {
                          request.resource.data.amount > 0 &&
                          request.resource.data.orderId is string &&
                          request.resource.data.shopId == shopId &&
-                         request.resource.data.customerId is string &&
                          request.resource.data.createdAt is string;
 
         // Strictly immutable for financial audit trail

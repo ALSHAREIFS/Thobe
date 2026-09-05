@@ -49,7 +49,7 @@ interface AuthContextType {
   selectShopForAdmin: (shop: Shop | null) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -81,12 +81,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setPlatformViewMode('platform');
       }
 
-      // 2. Fetch user profile from Firestore /users/{uid}
-      const profile = await TailorService.getUserProfile(user.uid);
-      if (profile) {
-        setCurrentUser(profile);
-      } else if (isSuper) {
-        // Fallback for Super Admin
+      // 2. Resolve User Profile & Shop Ownership
+      // A. Check if user is the designated owner of a shop (Strictly by ownerUid)
+      let resolvedShop: Shop | null = null;
+      let resolvedProfile: UserProfile | null = null;
+
+      try {
+        resolvedShop = await TailorService.getShopByOwner(user.uid);
+      } catch (err) {
+        console.warn('Could not check shop by ownerUid:', err);
+      }
+
+      // B. Fetch user document from /users/{uid}
+      const rawProfile = await TailorService.getUserProfile(user.uid);
+
+      // C. If user is owner of a shop (Strictly ownerUid === user.uid):
+      if (resolvedShop && resolvedShop.ownerUid === user.uid) {
+        // The user IS the verified Shop Owner
+        resolvedProfile = await TailorService.ensureShopOwnerProfile(resolvedShop, {
+          uid: user.uid,
+          email: user.email,
+          fullName: user.displayName || rawProfile?.fullName,
+          phone: rawProfile?.phone,
+        });
+        setCurrentUser(resolvedProfile);
+        setCurrentShop(resolvedShop);
+        return;
+      }
+
+      // D. If not identified as owner via getShopByOwner, check if rawProfile has shopId:
+      if (rawProfile?.shopId) {
+        try {
+          const shop = await TailorService.getShop(rawProfile.shopId);
+          // Check if this shop designates this user as owner strictly by ownerUid
+          if (shop && shop.ownerUid === user.uid) {
+            resolvedProfile = await TailorService.ensureShopOwnerProfile(shop, {
+              uid: user.uid,
+              email: user.email,
+              fullName: rawProfile.fullName || user.displayName,
+              phone: rawProfile.phone,
+            });
+            setCurrentUser(resolvedProfile);
+            setCurrentShop(shop);
+            return;
+          }
+
+          // Otherwise, user is an employee in this shop
+          // Verify membership record in /shops/{shopId}/users/{uid}
+          const memberDoc = await TailorService.getShopMember(rawProfile.shopId, user.uid);
+          if (memberDoc && memberDoc.isActive) {
+            resolvedProfile = {
+              ...rawProfile,
+              ...memberDoc,
+              role: 'EMPLOYEE', // strictly EMPLOYEE
+            };
+            setCurrentUser(resolvedProfile);
+            setCurrentShop(shop);
+            return;
+          } else {
+            console.warn('User has inactive or missing employee membership document');
+            setCurrentUser(rawProfile);
+            setCurrentShop(shop);
+            return;
+          }
+        } catch (shopErr: any) {
+          console.warn('Could not load shop for member:', shopErr);
+        }
+      }
+
+      // E. Fallback for Super Admin or basic user
+      if (isSuper) {
         const superProfile: UserProfile = {
           userId: user.uid,
           uid: user.uid,
@@ -98,23 +162,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: new Date().toISOString(),
         };
         setCurrentUser(superProfile);
+        setCurrentShop(null);
+      } else if (rawProfile) {
+        setCurrentUser(rawProfile);
+        setCurrentShop(null);
       } else {
         setCurrentUser(null);
-        setCurrentShop(null);
-        return;
-      }
-
-      // 3. Fetch user's shop if they belong to a shop
-      const shopIdToFetch = profile?.shopId;
-      if (shopIdToFetch) {
-        try {
-          const shop = await TailorService.getShop(shopIdToFetch);
-          setCurrentShop(shop);
-        } catch (shopErr: any) {
-          console.warn('Could not load shop for user:', shopErr);
-          setCurrentShop(null);
-        }
-      } else {
         setCurrentShop(null);
       }
     } catch (err: any) {
@@ -142,6 +195,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => unsubscribe();
   }, [loadUserData]);
+
+  // Real-time shop status & info listener for active tenants
+  useEffect(() => {
+    const shopId = currentUser?.shopId;
+    if (!shopId) return;
+
+    const unsubscribeShop = TailorService.subscribeShop(shopId, (updatedShop) => {
+      setCurrentShop(updatedShop);
+    });
+
+    return () => unsubscribeShop();
+  }, [currentUser?.shopId]);
 
   const signIn = async (email: string, pass: string) => {
     try {

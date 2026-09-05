@@ -38,9 +38,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar }) => {
   };
 
   const getRoleLabel = () => {
-    if (isSuperAdmin || role === 'SUPER_ADMIN') return 'إدارة المنصة (Super Admin)';
-    if (role === 'SHOP') return 'حساب المتجر (Shop)';
-    return 'موظف (Employee)';
+    if (isSuperAdmin || role === 'SUPER_ADMIN') return 'إدارة المنصة';
+    if (role === 'SHOP') return 'مالك المتجر';
+    return 'موظف';
   };
 
   const getRoleBadgeColor = () => {
@@ -66,11 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar }) => {
               ث
             </div>
             <div>
-              <div className="font-black text-sm text-slate-900 flex items-center gap-1.5">
-                <span>{currentShop?.name || currentShop?.shopName || 'محل الخياطة'}</span>
-                <span className="text-[10px] font-bold bg-blue-50 text-[#1A365D] border border-blue-200 px-2 py-0.2 rounded-full hidden sm:inline">
-                  SaaS Tenant
-                </span>
+              <div className="font-black text-sm text-slate-900">
+                {currentShop?.name || currentShop?.shopName || 'محل الخياطة'}
               </div>
               <div className="text-[10px] text-slate-400 font-semibold hidden sm:block">
                 {currentShop?.city ? `فرع ${currentShop.city}` : 'دفتر التفصيل الإلكتروني'}

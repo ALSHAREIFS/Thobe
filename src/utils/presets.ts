@@ -182,14 +182,16 @@ export const validateFabricAndPricing = (
 ): TailoringValidationResult => {
   const missing: string[] = [];
 
-  // 1. Fabric Name validation
-  if (!params.fabric?.name || params.fabric.name.trim() === '') {
-    missing.push('نوع أو اسم القماش');
+  // 1. Fabric Name validation (accepts presets or custom names, disallows empty or bare placeholders)
+  const fName = params.fabric?.name ? params.fabric.name.trim() : '';
+  if (!fName || fName === 'أخرى' || fName === 'قماش آخر' || fName === 'قماش مخصص' || fName === 'قماش مخصص / نوع آخر') {
+    missing.push('نوع أو اسم القماش (يرجى كتابة أو اختيار اسم القماش)');
   }
 
-  // 2. Fabric Color validation (if fabric is selected and not a special no-fabric type, require color)
-  if (!params.fabric?.color || params.fabric.color.trim() === '') {
-    missing.push('لون القماش');
+  // 2. Fabric Color validation (accepts quick presets or custom colors, disallows empty or bare placeholders)
+  const fColor = params.fabric?.color ? params.fabric.color.trim() : '';
+  if (!fColor || fColor === 'أخرى' || fColor === 'لون آخر' || fColor === 'لون مخصص') {
+    missing.push('لون القماش (يرجى كتابة أو اختيار لون القماش)');
   }
 
   // 3. Unit Price validation
@@ -229,32 +231,70 @@ export const validateFabricAndPricing = (
 export const validateTailoringDetails = (details: TailoringDetails): TailoringValidationResult => {
   const missing: string[] = [];
 
-  if (!details.garmentType || details.garmentType.trim() === '') {
-    missing.push('نوع الثوب والقصة');
+  // 1. Garment Type
+  const gType = details.garmentType ? details.garmentType.trim() : '';
+  if (!gType || gType === 'أخرى' || gType === 'custom' || gType === 'قصة مخصصة' || gType === 'قصة مخصصة / نوع آخر') {
+    missing.push('نوع الثوب والقصة (يرجى تحديد أو كتابة اسم القصة)');
   }
 
+  // 2. Collar
   if (!details.collar?.type || details.collar.type.trim() === '') {
     missing.push('تصميم الياقة');
+  } else if (details.collar.type === 'custom' || details.collar.type === 'other') {
+    const cName = details.collar.name ? details.collar.name.trim() : '';
+    if (!cName || cName === 'أخرى' || cName === 'custom' || cName === 'ياقة مخصصة' || cName === 'ياقة مخصصة / شكل آخر') {
+      missing.push('تصميم الياقة المخصص (يرجى كتابة وصف الياقة)');
+    }
   }
 
+  // 3. Sleeves
   if (!details.sleeves?.type || details.sleeves.type.trim() === '') {
     missing.push('تصميم الأكمام والكبك');
+  } else if (details.sleeves.type === 'custom' || details.sleeves.type === 'other') {
+    const sName = details.sleeves.name ? details.sleeves.name.trim() : '';
+    if (!sName || sName === 'أخرى' || sName === 'custom' || sName === 'كم مخصص' || sName === 'كم مخصص / شكل آخر') {
+      missing.push('تصميم الأكمام المخصص (يرجى كتابة وصف الكم)');
+    }
   }
 
+  // 4. Pockets
   if (!details.pockets?.chestPocketType || details.pockets.chestPocketType.trim() === '') {
     missing.push('تصميم الجيوب');
+  } else if (details.pockets.chestPocketType === 'custom') {
+    const pName = details.pockets.name ? details.pockets.name.trim() : '';
+    if (!pName || pName === 'أخرى' || pName === 'custom' || pName === 'جيب مخصص' || pName === 'تصميم جيب مخصص / شكل آخر') {
+      missing.push('تصميم الجيب المخصص (يرجى كتابة وصف الجيب)');
+    }
   }
 
+  // 5. Chest / Placket
   if (!details.chest?.placketType || details.chest.placketType.trim() === '') {
     missing.push('الصدر والصنجار (الجبزور)');
+  } else if (details.chest.placketType === 'custom') {
+    const chName = details.chest.name ? details.chest.name.trim() : '';
+    if (!chName || chName === 'أخرى' || chName === 'custom' || chName === 'صنجار مخصص' || chName === 'صنجار مخصص / تصميم آخر') {
+      missing.push('تصميم الصنجار المخصص (يرجى كتابة وصف الصنجار)');
+    }
   }
 
+  // 6. Buttons
   if (!details.buttons?.type || details.buttons.type.trim() === '') {
     missing.push('نوعية الأزرار');
+  } else if (details.buttons.type === 'custom') {
+    const bName = details.buttons.name ? details.buttons.name.trim() : '';
+    if (!bName || bName === 'أخرى' || bName === 'custom' || bName === 'أزرار مخصصة' || bName === 'أزرار مخصصة / نوع آخر') {
+      missing.push('نوعية الأزرار المخصصة (يرجى كتابة نوع الأزرار)');
+    }
   }
 
+  // 7. Bottom & Hem
   if (!details.bottom?.finishType || details.bottom.finishType.trim() === '') {
     missing.push('أسفل الثوب (الكف والفتحات)');
+  } else if (details.bottom.finishType === 'custom') {
+    const botName = details.bottom.name ? details.bottom.name.trim() : '';
+    if (!botName || botName === 'أخرى' || botName === 'custom' || botName === 'تشطيب مخصص' || botName === 'تشطيب مخصص / خيار آخر') {
+      missing.push('تشطيب أسفل الثوب المخصص (يرجى كتابة وصف التشطيب)');
+    }
   }
 
   return {
@@ -422,11 +462,12 @@ export const ORDER_STATUS_LABELS: Record<
   string,
   { label: string; color: string; bg: string }
 > = {
-  NEW: { label: 'طلب جديد', color: '#1e3a8a', bg: '#dbeafe' },
-  CUTTING: { label: 'في القص', color: '#92400e', bg: '#fef3c7' },
-  SEWING: { label: 'في الخياطة', color: '#854d0e', bg: '#fef9c3' },
+  NEW: { label: 'جديد', color: '#1e3a8a', bg: '#dbeafe' },
+  MEASURED: { label: 'تم أخذ المقاسات', color: '#1d4ed8', bg: '#eff6ff' },
+  CUTTING: { label: 'قيد القص', color: '#92400e', bg: '#fef3c7' },
+  SEWING: { label: 'قيد الخياطة', color: '#854d0e', bg: '#fef9c3' },
   FITTING: { label: 'بروفة وقياس', color: '#6b21a8', bg: '#f3e8ff' },
-  READY: { label: 'جاهز للاستلام', color: '#065f46', bg: '#d1fae5' },
+  READY: { label: 'جاهز', color: '#065f46', bg: '#d1fae5' },
   DELIVERED: { label: 'تم التسليم', color: '#374151', bg: '#f3f4f6' },
   CANCELLED: { label: 'ملغي', color: '#991b1b', bg: '#fee2e2' },
 };

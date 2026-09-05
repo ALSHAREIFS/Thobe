@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CollarRegularIcon,
   CollarMandarinIcon,
@@ -31,7 +31,7 @@ import {
   validateTailoringDetails,
 } from '../../utils/presets';
 import { TailoringDetails } from '../../types';
-import { Check, FileText, Sparkles, RotateCcw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Check, FileText, Sparkles, RotateCcw, AlertCircle, CheckCircle2, Scissors } from 'lucide-react';
 
 interface VisualOptionSelectorProps {
   tailoringDetails: TailoringDetails;
@@ -42,6 +42,64 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
   tailoringDetails,
   onChange,
 }) => {
+  const isPresetGarment = GARMENT_TYPES_PRESET.some((g) => g.name === tailoringDetails.garmentType);
+  const hasCustomGarment = Boolean(tailoringDetails.garmentType && !isPresetGarment);
+  const [customGarmentActive, setCustomGarmentActive] = useState(() => hasCustomGarment);
+
+  useEffect(() => {
+    if (isPresetGarment) {
+      setCustomGarmentActive(false);
+    } else if (hasCustomGarment) {
+      setCustomGarmentActive(true);
+    }
+  }, [tailoringDetails.garmentType, isPresetGarment, hasCustomGarment]);
+
+  const isCustomGarment = customGarmentActive || hasCustomGarment;
+
+  const isPresetCollar = COLLAR_OPTIONS_PRESET.some((c) => c.id === tailoringDetails.collar.type);
+  const isPresetCollarName = COLLAR_OPTIONS_PRESET.some((c) => c.name === tailoringDetails.collar.name);
+  const isCustomCollar =
+    tailoringDetails.collar.type === 'custom' ||
+    tailoringDetails.collar.type === 'other' ||
+    Boolean(tailoringDetails.collar.type && !isPresetCollar) ||
+    Boolean(tailoringDetails.collar.name && !isPresetCollarName && tailoringDetails.collar.name !== 'غير محدد');
+
+  const isPresetSleeve = SLEEVE_OPTIONS_PRESET.some((s) => s.id === tailoringDetails.sleeves.type);
+  const isPresetSleeveName = SLEEVE_OPTIONS_PRESET.some((s) => s.name === tailoringDetails.sleeves.name);
+  const isCustomSleeve =
+    tailoringDetails.sleeves.type === 'custom' ||
+    tailoringDetails.sleeves.type === 'other' ||
+    Boolean(tailoringDetails.sleeves.type && !isPresetSleeve) ||
+    Boolean(tailoringDetails.sleeves.name && !isPresetSleeveName && tailoringDetails.sleeves.name !== 'غير محدد');
+
+  const isPresetPocket = POCKET_OPTIONS_PRESET.some((p) => p.id === tailoringDetails.pockets.chestPocketType);
+  const isPresetPocketName = POCKET_OPTIONS_PRESET.some((p) => p.name === tailoringDetails.pockets.name);
+  const isCustomPocket =
+    tailoringDetails.pockets.chestPocketType === 'custom' ||
+    Boolean(tailoringDetails.pockets.chestPocketType && !isPresetPocket) ||
+    Boolean(tailoringDetails.pockets.name && !isPresetPocketName && tailoringDetails.pockets.name !== 'غير محدد');
+
+  const isPresetChest = CHEST_OPTIONS_PRESET.some((ch) => ch.id === tailoringDetails.chest.placketType);
+  const isPresetChestName = CHEST_OPTIONS_PRESET.some((ch) => ch.name === tailoringDetails.chest.name);
+  const isCustomChest =
+    tailoringDetails.chest.placketType === 'custom' ||
+    Boolean(tailoringDetails.chest.placketType && !isPresetChest) ||
+    Boolean(tailoringDetails.chest.name && !isPresetChestName && tailoringDetails.chest.name !== 'غير محدد');
+
+  const isPresetButton = BUTTON_OPTIONS_PRESET.some((b) => b.id === tailoringDetails.buttons.type);
+  const isPresetButtonName = BUTTON_OPTIONS_PRESET.some((b) => b.name === tailoringDetails.buttons.name);
+  const isCustomButton =
+    tailoringDetails.buttons.type === 'custom' ||
+    Boolean(tailoringDetails.buttons.type && !isPresetButton) ||
+    Boolean(tailoringDetails.buttons.name && !isPresetButtonName && tailoringDetails.buttons.name !== 'غير محدد');
+
+  const isPresetBottom = BOTTOM_OPTIONS_PRESET.some((b) => b.id === tailoringDetails.bottom.finishType);
+  const isPresetBottomName = BOTTOM_OPTIONS_PRESET.some((b) => b.name === tailoringDetails.bottom.name);
+  const isCustomBottom =
+    tailoringDetails.bottom.finishType === 'custom' ||
+    Boolean(tailoringDetails.bottom.finishType && !isPresetBottom) ||
+    Boolean(tailoringDetails.bottom.name && !isPresetBottomName && tailoringDetails.bottom.name !== 'غير محدد');
+
   const validation = validateTailoringDetails(tailoringDetails);
   const totalRequired = 7;
   const completedCount = totalRequired - validation.missingFields.length;
@@ -60,8 +118,11 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
         <div className="flex items-center gap-2 self-end sm:self-center">
           <button
             type="button"
-            onClick={() => onChange(DEFAULT_TAILORING_DETAILS)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs"
+            onClick={() => {
+              setCustomGarmentActive(false);
+              onChange(DEFAULT_TAILORING_DETAILS);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
             تطبيق قالب الثوب السعودي الرسمي
@@ -69,8 +130,11 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
           {tailoringDetails.garmentType && (
             <button
               type="button"
-              onClick={() => onChange(EMPTY_TAILORING_DETAILS)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-stone-100 text-stone-600 border border-stone-300 rounded-xl text-xs font-medium transition-all"
+              onClick={() => {
+                setCustomGarmentActive(false);
+                onChange(EMPTY_TAILORING_DETAILS);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-stone-100 text-stone-600 border border-stone-300 rounded-xl text-xs font-medium transition-all cursor-pointer"
               title="تفريغ الخيارات"
             >
               <RotateCcw className="w-3 h-3" />
@@ -97,24 +161,26 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
           <div>
             <div className="text-xs font-bold">
               {validation.isValid
-                ? 'اكتملت جميع خيارات التفصيل الأساسية (7/7)'
-                : `خيارات التفصيل الأساسية المطلوبة (${completedCount}/${totalRequired}):`}
+                ? 'اكتملت جميع مواصفات التفصيل الـ 7 بنجاح'
+                : `تم تحديد (${completedCount} من ${totalRequired}) مواصفات تفصيل`}
             </div>
             {!validation.isValid && (
               <div className="text-[11px] text-amber-800 mt-0.5">
-                يرجى تحديد: {validation.missingFields.join(' • ')}
+                المتبقي لتأكيد الطلب: {validation.missingFields.join(' • ')}
               </div>
             )}
           </div>
         </div>
-        <div
-          className={`text-xs font-bold px-2.5 py-1 rounded-lg shrink-0 ${
-            validation.isValid
-              ? 'bg-emerald-200/60 text-emerald-900'
-              : 'bg-amber-200/60 text-amber-900'
-          }`}
-        >
-          {completedCount} من {totalRequired} مكتمل
+        <div className="text-left shrink-0">
+          <span
+            className={`text-xs font-black px-2.5 py-1 rounded-full border ${
+              validation.isValid
+                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                : 'bg-amber-100 text-amber-900 border-amber-300'
+            }`}
+          >
+            {completedCount}/{totalRequired}
+          </span>
         </div>
       </div>
 
@@ -126,16 +192,20 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">1</span>
               نوع الثوب والقصة
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">اختر الستايل العام ونمط التفصيل</p>
+            <p className="text-xs text-stone-500 mt-0.5">اختر الستايل العام ونمط التفصيل أو اكتب قصة مخصصة</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.garmentType
+              tailoringDetails.garmentType && tailoringDetails.garmentType !== 'أخرى' && tailoringDetails.garmentType !== 'قصة مخصصة'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.garmentType || 'غير محدد (مطلوب)'}
+            {tailoringDetails.garmentType && tailoringDetails.garmentType !== 'أخرى' && tailoringDetails.garmentType !== 'قصة مخصصة'
+              ? isCustomGarment
+                ? `مخصص: ${tailoringDetails.garmentType}`
+                : tailoringDetails.garmentType
+              : 'نوع القصة مطلوب'}
           </span>
         </div>
 
@@ -146,8 +216,11 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <button
                 key={g.id}
                 type="button"
-                onClick={() => onChange({ ...tailoringDetails, garmentType: g.name })}
-                className={`text-right p-3.5 rounded-xl border-2 transition-all relative flex flex-col justify-between ${
+                onClick={() => {
+                  setCustomGarmentActive(false);
+                  onChange({ ...tailoringDetails, garmentType: g.name });
+                }}
+                className={`text-right p-3.5 rounded-xl border-2 transition-all relative flex flex-col justify-between cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/70 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50/50'
@@ -170,7 +243,58 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Garment Card */}
+          <button
+            type="button"
+            onClick={() => {
+              setCustomGarmentActive(true);
+              if (isPresetGarment) {
+                onChange({ ...tailoringDetails, garmentType: '' });
+              }
+            }}
+            className={`text-right p-3.5 rounded-xl border-2 border-dashed transition-all relative flex flex-col justify-between cursor-pointer ${
+              isCustomGarment
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomGarment && (
+              <span className="absolute top-2.5 left-2.5 w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-3 h-3 stroke-[3]" />
+              </span>
+            )}
+            <div>
+              <div className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
+                <Scissors className="w-4 h-4 text-amber-700" />
+                قصة مخصصة / نوع آخر
+              </div>
+              <div className="text-xs text-stone-600 mt-1 leading-relaxed">
+                إدخال نمط أو قصة خاصة غير مدرجة في الخيارات الجاهزة
+              </div>
+            </div>
+            <span className="self-start mt-2 text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
+              تخصيص حر ✍️
+            </span>
+          </button>
         </div>
+
+        {/* Custom Garment Input */}
+        {isCustomGarment && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم قصة أو نوع الثوب المخصص * (اكتب الاسم الفعلي للقصة)
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.garmentType}
+              onChange={(e) => onChange({ ...tailoringDetails, garmentType: e.target.value })}
+              placeholder="اكتب نوع أو قصة الثوب (مثال: ثوب مغربي رسمي، دقلة، سديري تراثي، ثوب بحريني مخصر...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Branch 1 Notes */}
         <div className="pt-3 border-t border-stone-200">
@@ -196,20 +320,24 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">2</span>
               تصميم الياقة (القلاب)
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">اختر شكل الياقة ومستوى قساوة الحشوة</p>
+            <p className="text-xs text-stone-500 mt-0.5">اختر شكل الياقة ومستوى قساوة الحشوة أو أدخل تصميماً مخصصاً</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.collar.type
+              tailoringDetails.collar.type && tailoringDetails.collar.name && tailoringDetails.collar.name !== 'غير محدد'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.collar.name || 'غير محدد (مطلوب)'}
+            {tailoringDetails.collar.name && tailoringDetails.collar.name !== 'غير محدد'
+              ? isCustomCollar
+                ? `مخصص: ${tailoringDetails.collar.name}`
+                : tailoringDetails.collar.name
+              : 'تصميم الياقة مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-4">
           {COLLAR_OPTIONS_PRESET.map((c) => {
             const isSelected = tailoringDetails.collar.type === c.id;
             return (
@@ -228,7 +356,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -252,7 +380,60 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Collar Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                collar: {
+                  ...tailoringDetails.collar,
+                  type: 'custom',
+                  name: isCustomCollar && tailoringDetails.collar.name !== 'غير محدد' ? tailoringDetails.collar.name : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomCollar
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomCollar && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-16 h-16 my-1 flex items-center justify-center text-amber-700">
+              <Scissors className="w-8 h-8" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-2">ياقة مخصصة / أخرى</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">تصميم يدوي خاص</div>
+          </button>
         </div>
+
+        {/* Custom Collar Input */}
+        {isCustomCollar && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم أو وصف تصميم الياقة المخصص * (اكتب التصميم الفعلي للياقة)
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.collar.name}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  collar: { ...tailoringDetails.collar, name: e.target.value },
+                })
+              }
+              placeholder="اكتب تصميم الياقة (مثال: قلاب إيطالي مقلوب، ياقة صينية مدببة، ياقة دائرية بدون أزرار...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Collar Controls (Stiffness & Height) */}
         <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -269,7 +450,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       collar: { ...tailoringDetails.collar, stiffness: stiff },
                     })
                   }
-                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     tailoringDetails.collar.stiffness === stiff
                       ? 'bg-amber-800 text-white border-amber-800'
                       : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
@@ -317,7 +498,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       collar: { ...tailoringDetails.collar, buttonsCount: cnt },
                     })
                   }
-                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     tailoringDetails.collar.buttonsCount === cnt && (tailoringDetails.collar.type !== '' || cnt > 0)
                       ? 'bg-amber-800 text-white border-amber-800'
                       : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
@@ -359,20 +540,24 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">3</span>
               تصميم الأكمام والكبك
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">حدد شكل نهاية الكم ونوع القفل</p>
+            <p className="text-xs text-stone-500 mt-0.5">حدد شكل نهاية الكم ونوع القفل أو أدخل تصميماً مخصصاً</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.sleeves.type
+              tailoringDetails.sleeves.type && tailoringDetails.sleeves.name && tailoringDetails.sleeves.name !== 'غير محدد'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.sleeves.name || 'غير محدد (مطلوب)'}
+            {tailoringDetails.sleeves.name && tailoringDetails.sleeves.name !== 'غير محدد'
+              ? isCustomSleeve
+                ? `مخصص: ${tailoringDetails.sleeves.name}`
+                : tailoringDetails.sleeves.name
+              : 'تصميم الكم مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 mb-4">
           {SLEEVE_OPTIONS_PRESET.map((s) => {
             const isSelected = tailoringDetails.sleeves.type === s.id;
             return (
@@ -389,7 +574,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -414,7 +599,60 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Sleeve Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                sleeves: {
+                  ...tailoringDetails.sleeves,
+                  type: 'custom',
+                  name: isCustomSleeve && tailoringDetails.sleeves.name !== 'غير محدد' ? tailoringDetails.sleeves.name : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomSleeve
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomSleeve && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-16 h-16 my-1 flex items-center justify-center text-amber-700">
+              <Scissors className="w-8 h-8" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-2">كم مخصص / آخر</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">شكل كبك أو كم خاص</div>
+          </button>
         </div>
+
+        {/* Custom Sleeve Input */}
+        {isCustomSleeve && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم أو وصف تصميم الكم المخصص * (اكتب الشكل الفعلي للكم)
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.sleeves.name}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  sleeves: { ...tailoringDetails.sleeves, name: e.target.value },
+                })
+              }
+              placeholder="اكتب شكل الكم (مثال: كم فرنسي مزدوج دبل كبك، كبك مقوس مائل، كم وسيع بكفة مخفية...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Sleeves controls */}
         <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -431,7 +669,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       sleeves: { ...tailoringDetails.sleeves, cuffStiffness: stiff },
                     })
                   }
-                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     tailoringDetails.sleeves.cuffStiffness === stiff
                       ? 'bg-amber-800 text-white border-amber-800'
                       : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
@@ -483,7 +721,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       sleeves: { ...tailoringDetails.sleeves, buttonStyle: item.id as any },
                     })
                   }
-                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     tailoringDetails.sleeves.buttonStyle === item.id
                       ? 'bg-amber-800 text-white border-amber-800'
                       : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
@@ -525,7 +763,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">4</span>
               الجيوب (الصدر والجوانب)
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">تحديد شكل جيب الصدر وجيوب الجوانب ومخبأ الجوال</p>
+            <p className="text-xs text-stone-500 mt-0.5">تحديد شكل جيب الصدر وجيوب الجوانب ومخبأ الجوال أو تصميم مخصص</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
@@ -537,12 +775,16 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
             {tailoringDetails.pockets.chestPocketType
               ? tailoringDetails.pockets.chestPocketType === 'none'
                 ? 'بدون جيب صدر'
+                : isCustomPocket
+                ? tailoringDetails.pockets.name
+                  ? `مخصص: ${tailoringDetails.pockets.name}`
+                  : 'جيب مخصص'
                 : POCKET_OPTIONS_PRESET.find((p) => p.id === tailoringDetails.pockets.chestPocketType)?.name || 'محدد'
-              : 'غير محدد (مطلوب)'}
+              : 'تصميم الجيوب مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
           {POCKET_OPTIONS_PRESET.map((p) => {
             const isSelected = tailoringDetails.pockets.chestPocketType === p.id;
             return (
@@ -556,10 +798,11 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       ...tailoringDetails.pockets,
                       hasChestPocket: p.id !== 'none',
                       chestPocketType: p.id as any,
+                      name: p.name,
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -582,7 +825,61 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Pocket Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                pockets: {
+                  ...tailoringDetails.pockets,
+                  hasChestPocket: true,
+                  chestPocketType: 'custom',
+                  name: isCustomPocket ? (tailoringDetails.pockets.name || '') : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomPocket
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomPocket && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-16 h-16 my-1 flex items-center justify-center text-amber-700">
+              <Scissors className="w-8 h-8" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-2">جيب مخصص / آخر</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">تصميم جيب فريد</div>
+          </button>
         </div>
+
+        {/* Custom Pocket Input */}
+        {isCustomPocket && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم وتصميم جيب الصدر المخصص *
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.pockets.name || ''}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  pockets: { ...tailoringDetails.pockets, name: e.target.value },
+                })
+              }
+              placeholder="اكتب شكل وتصميم الجيب (مثال: جيب دائري مقوس، جيب بسحاب مخفي، جيب قلاب مائل، جيب مزدوج...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Pocket Accessories Checkboxes */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -635,7 +932,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                       pockets: { ...tailoringDetails.pockets, sidePocketsCount: num },
                     })
                   }
-                  className={`px-3 py-1 text-xs font-bold rounded-lg border ${
+                  className={`px-3 py-1 text-xs font-bold rounded-lg border cursor-pointer ${
                     tailoringDetails.pockets.sidePocketsCount === num
                       ? 'bg-amber-800 text-white border-amber-800'
                       : 'bg-white text-stone-700 border-stone-300'
@@ -677,20 +974,24 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">5</span>
               الصدر والصنجار (الجبزور)
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">اختر شكل فتحة الصدر ونوع الصنجار</p>
+            <p className="text-xs text-stone-500 mt-0.5">اختر شكل فتحة الصدر ونوع الصنجار أو اكتب تصميماً مخصصاً</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.chest.placketType
+              tailoringDetails.chest.placketType && tailoringDetails.chest.name && tailoringDetails.chest.name !== 'غير محدد'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.chest.name || 'غير محدد (مطلوب)'}
+            {tailoringDetails.chest.name && tailoringDetails.chest.name !== 'غير محدد'
+              ? isCustomChest
+                ? `مخصص: ${tailoringDetails.chest.name}`
+                : tailoringDetails.chest.name
+              : 'تصميم الصدر مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
           {CHEST_OPTIONS_PRESET.map((ch) => {
             const isSelected = tailoringDetails.chest.placketType === ch.id;
             return (
@@ -707,7 +1008,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -730,7 +1031,60 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Chest Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                chest: {
+                  ...tailoringDetails.chest,
+                  placketType: 'custom',
+                  name: isCustomChest && tailoringDetails.chest.name !== 'غير محدد' ? tailoringDetails.chest.name : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomChest
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomChest && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-16 h-16 my-1 flex items-center justify-center text-amber-700">
+              <Scissors className="w-8 h-8" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-2">صدر مخصص / آخر</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">شكل جبزور خاص</div>
+          </button>
         </div>
+
+        {/* Custom Chest Input */}
+        {isCustomChest && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم وتصميم فتحة الصدر / الجبزور المخصص *
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.chest.name}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  chest: { ...tailoringDetails.chest, name: e.target.value },
+                })
+              }
+              placeholder="اكتب تصميم الصدر (مثال: جبزور مائل، جبزور مقفل بسحاب نحاسي مخفي، صنجار مغربي مقصب...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Branch 5 Notes */}
         <div className="pt-3 border-t border-stone-200">
@@ -761,20 +1115,24 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">6</span>
               الأزرار ونوعيتها
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">اختر خامة الأزرار ولونها</p>
+            <p className="text-xs text-stone-500 mt-0.5">اختر خامة الأزرار ولونها أو حدد نوعية خاصة</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.buttons.type
+              tailoringDetails.buttons.type && tailoringDetails.buttons.name && tailoringDetails.buttons.name !== 'غير محدد'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.buttons.name || 'غير محدد (مطلوب)'}
+            {tailoringDetails.buttons.name && tailoringDetails.buttons.name !== 'غير محدد'
+              ? isCustomButton
+                ? `مخصص: ${tailoringDetails.buttons.name}`
+                : tailoringDetails.buttons.name
+              : 'نوع الأزرار مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-4">
           {BUTTON_OPTIONS_PRESET.map((btn) => {
             const isSelected = tailoringDetails.buttons.type === btn.id;
             return (
@@ -792,7 +1150,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -825,7 +1183,59 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Buttons Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                buttons: {
+                  ...tailoringDetails.buttons,
+                  type: 'custom',
+                  name: isCustomButton && tailoringDetails.buttons.name !== 'غير محدد' ? tailoringDetails.buttons.name : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomButton
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomButton && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-10 h-10 rounded-full border-2 border-dashed border-amber-600 bg-amber-100/60 flex items-center justify-center my-2 text-amber-800">
+              <Scissors className="w-5 h-5" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-1">أزرار مخصصة / أخرى</div>
+          </button>
         </div>
+
+        {/* Custom Button Input */}
+        {isCustomButton && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              نوع أو خامة ولون الأزرار المخصصة *
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.buttons.name}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  buttons: { ...tailoringDetails.buttons, name: e.target.value },
+                })
+              }
+              placeholder="اكتب نوع الأزرار (مثال: صدفي طبيعي محفور بالليزر، عاجي ملكي مذهب، خشبي إيطالي...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Branch 6 Notes & Details */}
         <div className="pt-3 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -875,20 +1285,24 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center">7</span>
               أسفل الثوب (الكف والفتحات)
             </h3>
-            <p className="text-xs text-stone-500 mt-0.5">تشطيب الداير والفتحات الجانبية</p>
+            <p className="text-xs text-stone-500 mt-0.5">تشطيب الداير والفتحات الجانبية أو تشطيب مخصص</p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              tailoringDetails.bottom.finishType
+              tailoringDetails.bottom.finishType && tailoringDetails.bottom.name && tailoringDetails.bottom.name !== 'غير محدد'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {tailoringDetails.bottom.name || 'غير محدد (مطلوب)'}
+            {tailoringDetails.bottom.name && tailoringDetails.bottom.name !== 'غير محدد'
+              ? isCustomBottom
+                ? `مخصص: ${tailoringDetails.bottom.name}`
+                : tailoringDetails.bottom.name
+              : 'تشطيب أسفل الثوب مطلوب'}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
           {BOTTOM_OPTIONS_PRESET.map((b) => {
             const isSelected = tailoringDetails.bottom.finishType === b.id;
             return (
@@ -905,7 +1319,7 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
                     },
                   })
                 }
-                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative ${
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center relative cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -927,7 +1341,60 @@ export const VisualOptionSelector: React.FC<VisualOptionSelectorProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Custom Bottom Card */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange({
+                ...tailoringDetails,
+                bottom: {
+                  ...tailoringDetails.bottom,
+                  finishType: 'custom',
+                  name: isCustomBottom && tailoringDetails.bottom.name !== 'غير محدد' ? tailoringDetails.bottom.name : '',
+                },
+              });
+            }}
+            className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center text-center relative cursor-pointer ${
+              isCustomBottom
+                ? 'border-amber-700 bg-amber-50/80 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:border-amber-600 hover:bg-stone-100'
+            }`}
+          >
+            {isCustomBottom && (
+              <span className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+            <div className="w-16 h-16 my-1 flex items-center justify-center text-amber-700">
+              <Scissors className="w-8 h-8" />
+            </div>
+            <div className="font-bold text-xs text-amber-950 mt-2">تشطيب مخصص / آخر</div>
+            <div className="text-[11px] text-stone-500 mt-0.5">تفصيل داير خاص</div>
+          </button>
         </div>
+
+        {/* Custom Bottom Input */}
+        {isCustomBottom && (
+          <div className="mb-4 p-3.5 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم أو وصف تشطيب أسفل الثوب المخصص *
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={tailoringDetails.bottom.name}
+              onChange={(e) =>
+                onChange({
+                  ...tailoringDetails,
+                  bottom: { ...tailoringDetails.bottom, name: e.target.value },
+                })
+              }
+              placeholder="اكتب تفاصيل أسفل الثوب (مثال: كف داخلي عريض 5 سم مخفي، كلوش واسع جداً، دبل درزة سفلية...)"
+              className="w-full px-3.5 py-2 text-xs bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+            />
+          </div>
+        )}
 
         {/* Branch 7 Notes */}
         <div className="pt-3 border-t border-stone-200">

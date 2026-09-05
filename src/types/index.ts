@@ -62,10 +62,10 @@ export type OrderStatus =
 
 export const ORDER_STATUS_MAP: Record<OrderStatus, { label: string; color: string; bg: string; border: string }> = {
   NEW: { label: 'جديد', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-  MEASURED: { label: 'تم أخذ المقاس', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+  MEASURED: { label: 'تم أخذ المقاسات', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
   CUTTING: { label: 'قيد القص', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
   SEWING: { label: 'قيد الخياطة', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
-  READY: { label: 'جاهز للاستلام', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  READY: { label: 'جاهز', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
   DELIVERED: { label: 'تم التسليم', color: 'text-stone-700', bg: 'bg-stone-100', border: 'border-stone-200' },
   CANCELLED: { label: 'ملغي', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
 };
@@ -194,26 +194,27 @@ export interface ButtonDetails {
 
 export interface PocketDetails {
   hasChestPocket: boolean;
-  chestPocketType: 'regular' | 'chamfered' | 'square_flap' | 'hidden' | 'none';
+  chestPocketType: 'regular' | 'chamfered' | 'square_flap' | 'hidden' | 'none' | 'custom' | string;
+  name?: string;
   hasPenPocket: boolean;
   sidePocketsCount: number; // 1 | 2
-  sidePocketType: 'regular' | 'zipper' | 'hidden_inside';
+  sidePocketType: 'regular' | 'zipper' | 'hidden_inside' | string;
   hasMobileInnerPocket: boolean;
-  stitchingType: 'single' | 'double';
+  stitchingType: 'single' | 'double' | string;
   notes?: string;
 }
 
 export interface ChestDetails {
-  placketType: 'visible' | 'hidden' | 'wide' | 'narrow' | 'embroidered';
+  placketType: 'visible' | 'hidden' | 'wide' | 'narrow' | 'embroidered' | 'custom' | string;
   name: string;
-  placketStitching: 'single' | 'double' | 'hidden';
+  placketStitching: 'single' | 'double' | 'hidden' | string;
   embroideryPattern?: string;
   buttonsCount: number;
   notes?: string;
 }
 
 export interface BottomDetails {
-  finishType: 'wide_hem' | 'narrow_hem' | 'curved' | 'side_slits';
+  finishType: 'wide_hem' | 'narrow_hem' | 'curved' | 'side_slits' | 'custom' | string;
   name: string;
   slitLength?: number;
   notes?: string;
@@ -314,6 +315,7 @@ export interface Order {
   actualDeliveryDate?: string;
   assignedTailor?: string;
   images?: OrderImage[];
+  financialLocked?: boolean;
   notes?: string;
   createdAt: string;
   updatedAt: string;

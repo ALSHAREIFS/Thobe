@@ -71,13 +71,14 @@ interface ShopContextType {
   deleteEmployee: (userId: string) => Promise<void>;
 }
 
-const ShopContext = createContext<ShopContextType | undefined>(undefined);
+export const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentShop, currentUser, isSuperAdmin, isShop } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
   const [employees, setEmployees] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
@@ -131,14 +132,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setLoading(true);
-      const [cList, oList, pList] = await Promise.all([
+      const [cList, oList, pList, rList] = await Promise.all([
         TailorService.getCustomers(currentShop.shopId).catch(() => []),
         TailorService.getOrders(currentShop.shopId).catch(() => []),
         TailorService.getPayments(currentShop.shopId).catch(() => []),
+        TailorService.getRefunds(currentShop.shopId).catch(() => []),
       ]);
       setCustomers(cList);
       setOrders(oList);
       setPayments(pList);
+      setRefunds(rList);
 
       if (isSuperAdmin || isShop) {
         await fetchEmployeesList();
@@ -155,7 +158,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadAllData();
   }, [loadAllData]);
 
-  // Realtime subscription for customers and orders collections
+  // Realtime subscription for customers, orders, payments, and refunds collections
   useEffect(() => {
     if (!currentShop?.shopId) return;
 
@@ -189,10 +192,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
+    const unsubscribeRefunds = TailorService.subscribeRefunds(
+      currentShop.shopId,
+      (updatedRefunds) => {
+        setRefunds(updatedRefunds);
+      },
+      (err) => {
+        console.warn('Realtime refunds update failed:', err);
+      }
+    );
+
     return () => {
       unsubscribeCustomers();
       unsubscribeOrders();
       unsubscribePayments();
+      unsubscribeRefunds();
     };
   }, [currentShop?.shopId]);
 
@@ -276,6 +290,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return newPay;
     } catch (err: any) {
       showToast(err.message || 'فشل تسجيل الدفعة', 'error');
+      throw err;
+    }
+  };
+
+  const addRefund = async (data: Parameters<typeof TailorService.addRefund>[1]): Promise<Refund> => {
+    if (!currentShop?.shopId) throw new Error('المتجر غير محدد');
+    try {
+      const newRef = await TailorService.addRefund(currentShop.shopId, data);
+      await loadAllData();
+      showToast(`تم تسجيل سند استرداد بمبلغ ${newRef.amount} ر.س بنجاح`, 'success');
+      return newRef;
+    } catch (err: any) {
+      showToast(err.message || 'فشل تسجيل سند الاسترداد', 'error');
       throw err;
     }
   };
@@ -400,6 +427,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     customers,
     orders,
     payments,
+    refunds,
     employees,
     loading,
     toasts,
@@ -427,6 +455,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateCustomer,
     deleteCustomer,
     addPayment,
+    addRefund,
     startRepeatOrder,
     startEditOrder,
     addEmployee,

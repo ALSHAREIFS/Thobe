@@ -24,6 +24,40 @@ const COLOR_SWATCHES = [
 export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange }) => {
   const isCustomerFabric = fabric.name === 'قماش تم إحضاره من العميل' || fabric.code === 'CUST-01';
   const isNoFabric = fabric.name === 'بدون تسجيل قماش (تفصيل فقط / قماش لاحق)' || fabric.code === 'NO-FABRIC';
+  const isPresetFabric = FABRICS_PRESET.some((f) => f.name === fabric.name);
+  const hasCustomFabricName = Boolean(fabric.name && !isPresetFabric && !isCustomerFabric && !isNoFabric);
+
+  // Dedicated stable state for custom fabric mode
+  const [isCustomFabricMode, setIsCustomFabricMode] = React.useState<boolean>(() => {
+    return hasCustomFabricName || fabric.type === 'قماش مخصص';
+  });
+
+  // Dedicated stable state for custom color mode
+  const isPresetColor = COLOR_SWATCHES.some((s) => s.name === fabric.color);
+  const hasCustomColor = Boolean(fabric.color && !isPresetColor);
+  const [isCustomColorMode, setIsCustomColorMode] = React.useState<boolean>(() => {
+    return hasCustomColor;
+  });
+
+  // Sync state if preset or customer fabric is applied from props
+  React.useEffect(() => {
+    if (isPresetFabric || isCustomerFabric || isNoFabric) {
+      setIsCustomFabricMode(false);
+    } else if (hasCustomFabricName) {
+      setIsCustomFabricMode(true);
+    }
+  }, [fabric.name, isPresetFabric, isCustomerFabric, isNoFabric, hasCustomFabricName]);
+
+  React.useEffect(() => {
+    if (isPresetColor) {
+      setIsCustomColorMode(false);
+    } else if (hasCustomColor) {
+      setIsCustomColorMode(true);
+    }
+  }, [fabric.color, isPresetColor, hasCustomColor]);
+
+  const isCustomFabricActive = isCustomFabricMode || hasCustomFabricName;
+  const isCustomColorActive = isCustomColorMode || hasCustomColor;
 
   return (
     <div className="space-y-6">
@@ -35,7 +69,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              setIsCustomFabricMode(false);
               onChange({
                 ...fabric,
                 name: 'قماش تم إحضاره من العميل',
@@ -44,8 +79,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                 color: fabric.color && fabric.color !== 'غير محدد' ? fabric.color : 'حسب قماش العميل',
                 season: 'all',
                 notes: fabric.notes || 'قماش مستلم مباشرة من العميل',
-              })
-            }
+              });
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isCustomerFabric
                 ? 'bg-amber-700 text-white shadow-xs'
@@ -58,7 +93,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
 
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              setIsCustomFabricMode(false);
               onChange({
                 ...fabric,
                 name: 'بدون تسجيل قماش (تفصيل فقط / قماش لاحق)',
@@ -67,8 +103,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                 color: 'غير محدد',
                 season: 'all',
                 notes: fabric.notes || 'تفصيل فقط بدون احتساب القماش من المحل',
-              })
-            }
+              });
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isNoFabric
                 ? 'bg-stone-800 text-white shadow-xs'
@@ -81,24 +117,32 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
         </div>
       </div>
 
-      {/* 1. Saved Preset Fabrics (Without any pre-set prices) */}
+      {/* 1. Saved Preset Fabrics & Custom Fabric Option */}
       <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h4 className="font-black text-sm text-stone-900 flex items-center gap-2">
               <Tag className="w-4 h-4 text-amber-700" />
-              اختيار نوع القماش المتوفر
+              اختيار نوع القماش المتوفر أو كتابة قماش مخصص
             </h4>
-            <p className="text-xs text-stone-500 mt-0.5">اختر من الأقمشة اليابانية والكورية والشتوية الأكثر طلباً أو اكتب قماش مخصص</p>
+            <p className="text-xs text-stone-500 mt-0.5">
+              الخيارات الجاهزة للاختيار السريع وليست إلزامية — يمكنك اختيار قماش جاهز وتعديله أو كتابة نوع مخصص تماماً
+            </p>
           </div>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              fabric.name
+              fabric.name && fabric.name !== 'أخرى' && fabric.name !== 'قماش مخصص'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-amber-50 text-amber-800 border-amber-200'
             }`}
           >
-            {fabric.name || 'غير محدد (مطلوب)'}
+            {fabric.name && fabric.name !== 'أخرى' && fabric.name !== 'قماش مخصص'
+              ? isCustomFabricActive
+                ? `مخصص: ${fabric.name}`
+                : fabric.name
+              : isCustomFabricActive
+              ? 'اكتب نوع القماش'
+              : 'نوع القماش مطلوب'}
           </span>
         </div>
 
@@ -109,7 +153,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
               <button
                 key={i}
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setIsCustomFabricMode(false);
                   onChange({
                     ...fabric,
                     name: f.name,
@@ -117,8 +162,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                     season: f.season as any,
                     type: f.type,
                     color: fabric.color || f.color || '',
-                  })
-                }
+                  });
+                }}
                 className={`p-3.5 rounded-xl border-2 text-right transition-all relative flex flex-col justify-between cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50/70 shadow-xs ring-2 ring-amber-700/10'
@@ -138,13 +183,72 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                   </div>
                 </div>
                 <div className="mt-3 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-400">
-                  <span>الكود الافتراضي: {f.code}</span>
+                  <span>الكود: {f.code}</span>
                   <span className="text-amber-800 font-bold">اختيار</span>
                 </div>
               </button>
             );
           })}
+
+          {/* Dedicated Custom Fabric Card */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCustomFabricMode(true);
+              const currentIsPresetOrSpecial = isPresetFabric || isCustomerFabric || isNoFabric;
+              onChange({
+                ...fabric,
+                name: currentIsPresetOrSpecial ? '' : fabric.name,
+                code: currentIsPresetOrSpecial ? 'CUSTOM-FAB' : (fabric.code || 'CUSTOM-FAB'),
+                type: 'قماش مخصص',
+              });
+            }}
+            className={`p-3.5 rounded-xl border-2 border-dashed text-right transition-all relative flex flex-col justify-between cursor-pointer ${
+              isCustomFabricActive
+                ? 'border-amber-700 bg-amber-50 shadow-xs ring-2 ring-amber-700/10'
+                : 'border-stone-300 bg-stone-50/70 hover:bg-stone-100 hover:border-amber-600'
+            }`}
+          >
+            {isCustomFabricActive && (
+              <span className="absolute top-3 left-3 w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center">
+                <Check className="w-3 h-3 stroke-[3]" />
+              </span>
+            )}
+            <div>
+              <div className="font-bold text-sm text-amber-900 flex items-center gap-1.5">
+                <Scissors className="w-4 h-4 text-amber-700" />
+                قماش مخصص / نوع آخر
+              </div>
+              <div className="text-xs text-stone-600 mt-1 leading-relaxed">
+                كتابة اسم ونوع القماش غير المدرج في القائمة أعلاه
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-stone-200 flex items-center justify-between text-[11px] text-amber-800 font-bold">
+              <span>{isCustomFabricActive ? 'محدد حالياً' : 'كتابة يدوية'}</span>
+              <span>تحديد ✍️</span>
+            </div>
+          </button>
         </div>
+
+        {/* Custom Fabric Name Highlighted Input - Guaranteed to stay visible while in custom mode */}
+        {isCustomFabricActive && (
+          <div className="mt-4 p-4 bg-amber-50/80 rounded-xl border border-amber-300 transition-all animate-in fade-in">
+            <label className="block text-xs font-black text-amber-950 mb-1.5">
+              اسم أو نوع القماش المخصص * (اكتب الاسم الفعلي للقماش)
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={fabric.name}
+              onChange={(e) => onChange({ ...fabric, name: e.target.value })}
+              className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-amber-400 font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/30"
+              placeholder="مثال: ياباني سوبر فاخر"
+            />
+            <p className="text-[11px] text-amber-800 mt-1">
+              سيتم حفظ هذا الاسم كما كتبته تماماً في الطلب وكافة مستندات الطباعة.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 2. Color Swatches & Custom Color / Code Input */}
@@ -155,7 +259,9 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
               <Palette className="w-4 h-4 text-amber-700" />
               لون القماش والكود
             </h4>
-            <p className="text-xs text-stone-500 mt-0.5">اختر لوناً جاهزاً أو اكتب اسم اللون ورقم الكود بدقة</p>
+            <p className="text-xs text-stone-500 mt-0.5">
+              الألوان الجاهزة للاختيار السريع — يمكنك اختيار لون جاهز أو كتابة أي درجة مخصصة بدقة
+            </p>
           </div>
           {fabric.color && (
             <div className="flex items-center gap-2 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
@@ -171,16 +277,19 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
           )}
         </div>
 
-        {/* Preset Color Swatches */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 my-3">
+        {/* Preset Color Swatches + Custom Color Button */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 my-3">
           {COLOR_SWATCHES.map((swatch, idx) => {
             const isSelected = fabric.color === swatch.name;
             return (
               <button
                 key={idx}
                 type="button"
-                onClick={() => onChange({ ...fabric, color: swatch.name, colorCode: swatch.code })}
-                className={`p-2 rounded-xl border-2 flex items-center gap-2 transition-all text-right ${
+                onClick={() => {
+                  setIsCustomColorMode(false);
+                  onChange({ ...fabric, color: swatch.name, colorCode: swatch.code });
+                }}
+                className={`p-2 rounded-xl border-2 flex items-center gap-2 transition-all text-right cursor-pointer ${
                   isSelected
                     ? 'border-amber-700 bg-amber-50 ring-2 ring-amber-700/10 shadow-xs'
                     : 'border-stone-200 hover:border-stone-300 bg-white'
@@ -194,22 +303,44 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
               </button>
             );
           })}
+
+          {/* Quick Custom Color Trigger Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCustomColorMode(true);
+              if (isPresetColor) {
+                onChange({ ...fabric, color: '', colorCode: '' });
+              }
+            }}
+            className={`p-2 rounded-xl border-2 border-dashed flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              isCustomColorActive
+                ? 'border-amber-700 bg-amber-50 text-amber-900 font-bold ring-2 ring-amber-700/10 shadow-xs'
+                : 'border-stone-300 bg-stone-50 hover:bg-stone-100 text-stone-700 font-medium'
+            }`}
+          >
+            <Palette className="w-4 h-4 text-amber-700" />
+            <span className="text-xs">لون مخصص / آخر</span>
+          </button>
         </div>
 
         {/* Custom Color Name and Color Code Input Fields */}
-        <div className="mt-4 pt-4 border-t border-stone-200 bg-stone-50 p-4 rounded-xl">
-          <div className="text-xs font-bold text-stone-800 mb-3 flex items-center gap-1.5">
-            <span>كتابة وتحديد لون مخصص أو كود صبغة القماش:</span>
+        <div className={`mt-4 pt-4 border-t rounded-xl p-4 transition-all ${
+          isCustomColorActive ? 'bg-amber-50/70 border-amber-300' : 'bg-stone-50 border-stone-200'
+        }`}>
+          <div className="text-xs font-bold text-stone-800 mb-2 flex items-center justify-between">
+            <span>كتابة أو تعديل لون القماش بدقة (يمكنك كتابة أي درجة أو كود صبغة):</span>
+            <span className="text-[11px] text-stone-500 font-normal">اختيار لون جاهز يضعه هنا لتعديله بحرية</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-1">
-              <label className="block text-xs font-bold text-stone-700 mb-1.5">اسم اللون / الوصف *</label>
+              <label className="block text-xs font-bold text-stone-700 mb-1.5">اسم أو وصف اللون المطلوب *</label>
               <input
                 type="text"
                 value={fabric.color}
                 onChange={(e) => onChange({ ...fabric, color: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-white rounded-xl border border-stone-300 font-bold focus:border-amber-700 focus:outline-none"
-                placeholder="مثال: أبيض زرقة خفيفة، سكري ملكي، كحلي غامق..."
+                className="w-full px-3 py-2 text-xs bg-white rounded-xl border border-stone-300 font-bold text-stone-900 focus:border-amber-700 focus:outline-none"
+                placeholder="مثال: أبيض مزرق، سكري رملي، رمادي دخاني..."
               />
             </div>
 
@@ -219,8 +350,8 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                 type="text"
                 value={fabric.colorCode || ''}
                 onChange={(e) => onChange({ ...fabric, colorCode: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-white rounded-xl border border-stone-300 focus:border-amber-700 focus:outline-none font-mono"
-                placeholder="مثال: #FAF9F6 أو رقم صبغة 102/B"
+                className="w-full px-3 py-2 text-xs bg-white rounded-xl border border-stone-300 focus:border-amber-700 focus:outline-none font-mono text-stone-800"
+                placeholder="مثال: #FAF9F6 أو صبغة 204/C"
               />
             </div>
 

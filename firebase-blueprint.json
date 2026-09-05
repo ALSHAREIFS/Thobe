@@ -121,6 +121,7 @@
         "deliveryDate": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" },
+        "financialLocked": { "type": "boolean" },
         "createdBy": { "type": "string" }
       },
       "required": ["orderId", "orderNumber", "shopId", "customerId", "customerName", "customerPhone", "status", "quantity", "orderDate", "deliveryDate", "createdAt", "updatedAt"]

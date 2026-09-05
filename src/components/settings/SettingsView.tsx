@@ -249,7 +249,7 @@ export const SettingsView: React.FC = () => {
           </div>
           <h2 className="text-base font-black text-slate-900">غير مصرح بالوصول</h2>
           <p className="text-xs text-slate-500 leading-relaxed">
-            صفحة الإعدادات وإدارة فريق العمل مخصصة لحساب المتجر (Shop) والإدارة العامة فقط.
+            صفحة الإعدادات وإدارة فريق العمل مخصصة لمالك المتجر والإدارة العامة فقط.
           </p>
         </div>
       </div>
@@ -441,7 +441,7 @@ export const SettingsView: React.FC = () => {
                               ? 'bg-amber-50 text-amber-900 border-amber-200'
                               : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}>
-                            {isShopOwnerAccount ? 'حساب المتجر الرئيسي' : 'موظف (Employee)'}
+                            {isShopOwnerAccount ? 'مالك المتجر' : 'موظف'}
                           </span>
                           {/* Status Tag */}
                           <span className={`text-[10px] font-bold px-2 py-0.2 rounded-md border flex items-center gap-1 ${

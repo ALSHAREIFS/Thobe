@@ -3,6 +3,7 @@ import { Customer, CustomerMeasurement, Order } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
+import { OrderDetailModal } from '../orders/OrderDetailModal';
 import {
   X,
   User,
@@ -39,7 +40,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onPrintOrder,
   onEditOrder,
 }) => {
-  const { currentShop, updateCustomer, deleteCustomer } = useShop();
+  const { currentShop, payments, refunds, updateCustomer, deleteCustomer, showToast } = useShop();
   const { hasPermission } = useAuth();
 
   const canOrders = hasPermission('orders');
@@ -58,29 +59,38 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const [editNotes, setEditNotes] = useState(customer.notes || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<Order | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [mList, oList] = await Promise.all([
-          (canMeasurements || canCustomers)
-            ? TailorService.getCustomerMeasurements(currentShop.shopId, customer.customerId).catch(() => [])
-            : Promise.resolve([]),
-          canOrders
-            ? TailorService.getCustomerOrders(currentShop.shopId, customer.customerId).catch(() => [])
-            : Promise.resolve([]),
-        ]);
+    const shopId = currentShop?.shopId;
+    const custId = customer?.customerId;
+    if (!shopId || !custId) return;
+
+    let isMounted = true;
+    setLoading(true);
+
+    Promise.all([
+      (canMeasurements || canCustomers)
+        ? TailorService.getCustomerMeasurements(shopId, custId).catch(() => [])
+        : Promise.resolve([]),
+      canOrders
+        ? TailorService.getCustomerOrders(shopId, custId).catch(() => [])
+        : Promise.resolve([]),
+    ]).then(([mList, oList]) => {
+      if (isMounted) {
         setMeasurementsList(mList);
         setOrdersList(oList);
-      } catch (err) {
-        console.error('Error fetching customer profile:', err);
-      } finally {
         setLoading(false);
       }
+    }).catch((err) => {
+      console.error('Error fetching customer profile:', err);
+      if (isMounted) setLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
     };
-    fetchData();
-  }, [currentShop.shopId, customer.customerId, canOrders, canMeasurements, canCustomers]);
+  }, [currentShop?.shopId, customer?.customerId, canOrders, canMeasurements, canCustomers]);
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +105,13 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
   const handleConfirmDelete = async () => {
     if (isDeleting) return;
+
+    if (ordersList.length > 0) {
+      showToast('لا يمكن حذف هذا العميل لوجود طلبات مسجلة باسمه. يمكنك الاحتفاظ بسجله بدلًا من حذفه.', 'error');
+      setShowDeleteConfirm(false);
+      return;
+    }
+
     setIsDeleting(true);
     try {
       await deleteCustomer(customer.customerId);
@@ -102,6 +119,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Error deleting customer:', err);
+      showToast(err.message || 'حدث خطأ أثناء محاولة حذف العميل', 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -226,11 +244,17 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           {(() => {
             const validOrders = ordersList.filter((o) => o.status !== 'CANCELLED');
             const totalPurchases = validOrders.reduce((acc, o) => acc + (o.pricing?.totalAmount || 0), 0);
-            const totalRemaining = validOrders.reduce((acc, o) => {
-              const total = o.pricing?.totalAmount || 0;
-              const paid = o.pricing?.paidAmount || 0;
-              return acc + (o.pricing?.remainingAmount !== undefined ? o.pricing.remainingAmount : Math.max(0, total - paid));
-            }, 0);
+
+            // Compute customer payments and refunds strictly from SOT collections
+            const validOrderIds = new Set(validOrders.map((o) => o.orderId));
+            const customerGrossPaid = (payments || [])
+              .filter((p) => p.customerId === customer.customerId || validOrderIds.has(p.orderId))
+              .reduce((acc, p) => acc + (p.amount || 0), 0);
+            const customerRefunded = (refunds || [])
+              .filter((r) => r.customerId === customer.customerId || validOrderIds.has(r.orderId))
+              .reduce((acc, r) => acc + (r.amount || 0), 0);
+            const customerNetPaid = Math.max(0, customerGrossPaid - customerRefunded);
+            const totalRemaining = Math.max(0, totalPurchases - customerNetPaid);
 
             return (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -386,9 +410,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <button
-                          onClick={() => onPrintOrder(order)}
+                          onClick={() => setSelectedOrderForDetail(order)}
                           className="px-2.5 py-2 text-stone-700 hover:text-amber-900 bg-white hover:bg-amber-50 rounded-xl border border-stone-200 hover:border-amber-300 transition-all text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                          title="عرض نموذج وتفاصيل الطلب"
+                          title="عرض تفاصيل الطلب والحالة المالية"
                         >
                           <Eye className="w-3.5 h-3.5 text-amber-700" />
                           عرض
@@ -459,15 +483,23 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 هل أنت متأكد من حذف العميل <span className="text-rose-700 underline underline-offset-4">"{customer.fullName}"</span>؟
               </p>
 
-              {ordersList.length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed font-semibold">
-                  ⚠️ تنبيه: العميل لديه ({ordersList.length}) طلبات مسجلة في المتجر. لن يتم حذف طلباته السابقة حفاظاً على السجلات المالية والمحاسبية.
+              {ordersList.length > 0 ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 leading-relaxed font-bold flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black text-rose-800 text-sm">
+                      لا يمكن حذف هذا العميل لوجود طلبات مسجلة باسمه. يمكنك الاحتفاظ بسجله بدلًا من حذفه.
+                    </p>
+                    <p className="text-stone-600 mt-1 font-normal text-xs">
+                      يحتوي سجله على ({ordersList.length}) طلبات مسجلة للحفاظ على التاريخ المالي والمحاسبي.
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  سيتم حذف بطاقة العميل وسجل قياساته ({measurementsList.length} قياس مسجل) بشكل نهائي من المتجر.
+                </p>
               )}
-
-              <p className="text-xs text-stone-500 leading-relaxed">
-                سيتم حذف بطاقة العميل وسجل قياساته ({measurementsList.length} قياس مسجل) بشكل نهائي من المتجر.
-              </p>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
@@ -476,30 +508,54 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   onClick={() => setShowDeleteConfirm(false)}
                   className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  إلغاء
+                  {ordersList.length > 0 ? 'إغلاق' : 'إلغاء'}
                 </button>
-                <button
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={handleConfirmDelete}
-                  className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  {isDeleting ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      <span>جارٍ الحذف...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف العميل</span>
-                    </>
-                  )}
-                </button>
+                {ordersList.length === 0 && (
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={handleConfirmDelete}
+                    className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>جارٍ الحذف...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>حذف العميل</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
+      )}
+      {/* Order Detail Modal if opened from Customer Profile */}
+      {selectedOrderForDetail && (
+        <OrderDetailModal
+          order={selectedOrderForDetail}
+          onClose={() => setSelectedOrderForDetail(null)}
+          onPrint={() => {
+            const ord = selectedOrderForDetail;
+            setSelectedOrderForDetail(null);
+            onPrintOrder(ord);
+          }}
+          onRepeat={() => {
+            const ord = selectedOrderForDetail;
+            setSelectedOrderForDetail(null);
+            onRepeatOrder(ord);
+          }}
+          onEdit={onEditOrder ? () => {
+            const ord = selectedOrderForDetail;
+            setSelectedOrderForDetail(null);
+            onEditOrder(ord);
+          } : undefined}
+        />
       )}
     </div>
   );

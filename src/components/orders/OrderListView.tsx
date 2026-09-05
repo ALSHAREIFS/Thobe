@@ -23,6 +23,8 @@ import {
 export const OrderListView: React.FC = () => {
   const {
     orders,
+    payments,
+    refunds,
     deleteOrder,
     updateOrderStatus,
     setActiveTab,
@@ -38,6 +40,23 @@ export const OrderListView: React.FC = () => {
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
   const [orderToCancelWithWarning, setOrderToCancelWithWarning] = useState<Order | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+
+  // Source of Truth Maps for per-order financials
+  const paymentsByOrder = React.useMemo(() => {
+    const map = new Map<string, number>();
+    (payments || []).forEach((p) => {
+      if (p.orderId) map.set(p.orderId, (map.get(p.orderId) || 0) + (p.amount || 0));
+    });
+    return map;
+  }, [payments]);
+
+  const refundsByOrder = React.useMemo(() => {
+    const map = new Map<string, number>();
+    (refunds || []).forEach((r) => {
+      if (r.orderId) map.set(r.orderId, (map.get(r.orderId) || 0) + (r.amount || 0));
+    });
+    return map;
+  }, [refunds]);
 
   const handleConfirmDeleteOrder = async () => {
     if (!orderToDelete || isDeletingOrder) return;
@@ -75,9 +94,9 @@ export const OrderListView: React.FC = () => {
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = selectedStatus === 'ALL' || o.status === selectedStatus;
     const matchesSearch =
-      o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      o.customerPhone.includes(search);
+      (o?.orderNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+      (o?.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
+      (o?.customerPhone || '').includes(search);
     return matchesStatus && matchesSearch;
   });
 
@@ -166,6 +185,16 @@ export const OrderListView: React.FC = () => {
             color: '#333',
             bg: '#eee',
           };
+
+          // Calculate SOT Financials for this specific order
+          const orderGrossPaid = paymentsByOrder.has(order.orderId)
+            ? (paymentsByOrder.get(order.orderId) || 0)
+            : (order.pricing?.paidAmount || 0);
+          const orderRefunded = refundsByOrder.get(order.orderId) || 0;
+          const orderNetPaid = Math.max(0, orderGrossPaid - orderRefunded);
+          const orderTotal = order.pricing?.totalAmount || 0;
+          const orderRemaining = Math.max(0, orderTotal - orderNetPaid);
+
           return (
             <div
               key={order.orderId}
@@ -174,9 +203,9 @@ export const OrderListView: React.FC = () => {
             >
               {/* Order Info & Customer */}
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-stone-100 group-hover:bg-amber-100 text-stone-800 group-hover:text-amber-900 flex flex-col items-center justify-center shrink-0 border border-stone-200 transition-colors">
+                <div className="px-3 py-2 rounded-2xl bg-stone-100 group-hover:bg-amber-100 text-stone-800 group-hover:text-amber-900 flex flex-col items-center justify-center shrink-0 border border-stone-200 transition-colors">
                   <span className="text-[10px] font-bold text-stone-500">طلب</span>
-                  <span className="font-mono font-black text-xs">{order.orderNumber.slice(-4)}</span>
+                  <span className="font-mono font-black text-xs">{order.orderNumber}</span>
                 </div>
 
                 <div>
@@ -209,10 +238,10 @@ export const OrderListView: React.FC = () => {
               {/* Pricing & Actions */}
               <div className="flex items-center justify-between md:justify-end gap-4 pt-3 md:pt-0 border-t md:border-t-0 border-stone-100">
                 <div className="text-right">
-                  <div className="text-sm font-black text-stone-900">{order.pricing?.totalAmount} ر.س</div>
+                  <div className="text-sm font-black text-stone-900">{orderTotal} ر.س</div>
                   <div className="text-[11px] text-stone-400">
-                    {order.pricing?.remainingAmount > 0 ? (
-                      <span className="text-amber-800 font-bold">متبقي: {order.pricing.remainingAmount} ر.س</span>
+                    {orderRemaining > 0 ? (
+                      <span className="text-amber-800 font-bold">متبقي: {orderRemaining} ر.س</span>
                     ) : (
                       <span className="text-emerald-700 font-bold">مدفوع بالكامل ✓</span>
                     )}
@@ -224,10 +253,10 @@ export const OrderListView: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setOrderToPrint(order);
+                      setSelectedOrder(order);
                     }}
                     className="p-2 text-stone-700 hover:text-amber-900 bg-stone-50 hover:bg-amber-50 rounded-xl border border-stone-200 hover:border-amber-300 transition-all text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
-                    title="عرض نموذج وتفاصيل الطلب"
+                    title="عرض تفاصيل الطلب والحالة المالية"
                   >
                     <Eye className="w-4 h-4 text-amber-700" />
                     <span>عرض</span>
@@ -342,9 +371,16 @@ export const OrderListView: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold">
-                هذا الطلب يحتوي على مبلغ مدفوع قدره <b className="font-black text-amber-900 text-sm">{orderToCancelWithWarning.pricing?.paidAmount || 0} ر.س</b>. إلغاء الطلب لن يحذف أو يعكس سندات القبض المسجلة. يجب تسوية/رد المبلغ بشكل منفصل.
-              </div>
+              {(() => {
+                const cancelPaid = paymentsByOrder.has(orderToCancelWithWarning.orderId)
+                  ? (paymentsByOrder.get(orderToCancelWithWarning.orderId) || 0)
+                  : (orderToCancelWithWarning.pricing?.paidAmount || 0);
+                return (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold">
+                    هذا الطلب يحتوي على مبلغ مدفوع قدره <b className="font-black text-amber-900 text-sm">{cancelPaid} ر.س</b>. إلغاء الطلب لن يحذف دفعات العميل المسجلة. يمكنك إرجاع المبلغ للعميل بشكل منفصل.
+                  </div>
+                );
+              })()}
 
               <p className="text-xs text-stone-600 font-medium leading-relaxed">
                 عند تأكيد الإلغاء، ستتغير حالة الطلب ({orderToCancelWithWarning.orderNumber}) إلى (ملغي)، ويُستبعد من إجمالي مبيعات وطلبات المتجر في لوحة التحكم والتقارير.
@@ -381,61 +417,66 @@ export const OrderListView: React.FC = () => {
       )}
 
       {/* Delete Order Confirmation or Blocked Modal */}
-      {orderToDelete && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
-            <div className="p-5 bg-rose-900 text-white flex items-center justify-between">
-              <h3 className="font-black text-base flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-300" />
-                {(orderToDelete.pricing?.paidAmount || 0) > 0 ? 'تعذر الحذف النهائي للطلب' : 'تأكيد حذف أمر التفصيل'}
-              </h3>
-              <button
-                disabled={isDeletingOrder}
-                onClick={() => setOrderToDelete(null)}
-                className="text-rose-200 hover:text-white disabled:opacity-50 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
+      {orderToDelete && (() => {
+        const deletePaid = paymentsByOrder.has(orderToDelete.orderId)
+          ? (paymentsByOrder.get(orderToDelete.orderId) || 0)
+          : (orderToDelete.pricing?.paidAmount || 0);
 
-            <div className="p-6 space-y-4">
-              {(orderToDelete.pricing?.paidAmount || 0) > 0 ? (
-                <>
-                  <p className="text-sm font-bold text-stone-900">
-                    لا يمكن حذف الطلب رقم <span className="text-rose-700 font-mono">({orderToDelete.orderNumber})</span> نهائياً.
-                  </p>
+        return (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
+              <div className="p-5 bg-rose-900 text-white flex items-center justify-between">
+                <h3 className="font-black text-base flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-rose-300" />
+                  {deletePaid > 0 ? 'تعذر الحذف النهائي للطلب' : 'تأكيد حذف أمر التفصيل'}
+                </h3>
+                <button
+                  disabled={isDeletingOrder}
+                  onClick={() => setOrderToDelete(null)}
+                  className="text-rose-200 hover:text-white disabled:opacity-50 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
 
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-2">
-                    <p className="font-bold">
-                      يحتوي هذا الطلب على دفعات مسجلة بقيمة <span className="font-black text-rose-950">{orderToDelete.pricing?.paidAmount || 0} ر.س</span>.
+              <div className="p-6 space-y-4">
+                {deletePaid > 0 ? (
+                  <>
+                    <p className="text-sm font-bold text-stone-900">
+                      لا يمكن حذف الطلب رقم <span className="text-rose-700 font-mono">({orderToDelete.orderNumber})</span> نهائياً.
                     </p>
-                    <p className="text-rose-700 text-[11px] leading-relaxed">
-                      حذف هذا الطلب سيتسبب في وجود سندات قبض يتيمة وتشويه السجلات المحاسبية للمتجر. يرجى إلغاء الطلب بدلاً من حذفه.
-                    </p>
-                  </div>
 
-                  <div className="flex justify-end gap-2.5 pt-3 border-t border-stone-100">
-                    <button
-                      type="button"
-                      onClick={() => setOrderToDelete(null)}
-                      className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
-                    >
-                      إغلاق
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const target = orderToDelete;
-                        setOrderToDelete(null);
-                        setOrderToCancelWithWarning(target);
-                      }}
-                      className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white text-xs font-black rounded-xl shadow-xs transition-colors cursor-pointer"
-                    >
-                      إلغاء الطلب بدلاً من حذفه
-                    </button>
-                  </div>
-                </>
-              ) : (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-2">
+                      <p className="font-bold">
+                        يحتوي هذا الطلب على دفعات مسجلة بقيمة <span className="font-black text-rose-950">{deletePaid} ر.س</span>.
+                      </p>
+                      <p className="text-rose-700 text-[11px] leading-relaxed">
+                        حذف هذا الطلب سيتسبب في وجود دفعات غير مرتبطة بطلب وتشويه سجلات المتجر. يرجى إلغاء الطلب بدلاً من حذفه.
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2.5 pt-3 border-t border-stone-100">
+                      <button
+                        type="button"
+                        onClick={() => setOrderToDelete(null)}
+                        className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
+                      >
+                        إغلاق
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = orderToDelete;
+                          setOrderToDelete(null);
+                          setOrderToCancelWithWarning(target);
+                        }}
+                        className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white text-xs font-black rounded-xl shadow-xs transition-colors cursor-pointer"
+                      >
+                        إلغاء الطلب بدلاً من حذفه
+                      </button>
+                    </div>
+                  </>
+                ) : (
                 <>
                   <p className="text-sm font-bold text-stone-800">
                     هل أنت متأكد من حذف الطلب رقم <span className="text-rose-700 font-mono underline underline-offset-4">({orderToDelete.orderNumber})</span> للعميل <span className="font-black">{orderToDelete.customerName}</span>؟
@@ -489,7 +530,8 @@ export const OrderListView: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

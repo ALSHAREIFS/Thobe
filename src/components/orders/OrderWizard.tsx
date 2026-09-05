@@ -24,6 +24,7 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   ArrowLeft,
   Search,
@@ -47,7 +48,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   initialTemplateOrder,
   initialEditingOrder,
 }) => {
-  const { customers, orders, currentShop, showToast, createCustomer, updateOrder } = useShop();
+  const { customers, orders, payments, refunds, currentShop, showToast, createCustomer, updateOrder } = useShop();
   const { currentUser } = useAuth();
   const shopId = currentShop?.shopId || 'shop_main_01';
 
@@ -63,6 +64,17 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     });
     return counts;
   }, [orders]);
+
+  // Actual verified net paid for the order being edited
+  const actualNetPaid = useMemo(() => {
+    if (!isEditingMode || !initialEditingOrder) return 0;
+    const orderPays = payments.filter((p) => p.orderId === initialEditingOrder.orderId);
+    const orderRefs = refunds.filter((r) => r.orderId === initialEditingOrder.orderId);
+    const grossPaid = orderPays.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const totalRefunded = orderRefs.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+    const netFromDocs = Math.max(0, grossPaid - totalRefunded);
+    return grossPaid > 0 ? netFromDocs : Number(initialEditingOrder.pricing?.paidAmount || 0);
+  }, [isEditingMode, initialEditingOrder, payments, refunds]);
 
   // Wizard Step (1: Customer, 2: Measurements, 3: Tailoring Details, 4: Fabric & Pricing, 5: Review)
   const [step, setStep] = useState<number>(isEditingMode ? 2 : 1);
@@ -239,6 +251,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   // Pricing calculations
   const totalAmount = quantity * unitPrice;
   const remainingAmount = Math.max(0, totalAmount - paidAmount);
+  const isTotalLessThanNetPaid = isEditingMode && actualNetPaid > 0 && totalAmount < actualNetPaid;
 
   // Submission handler
   const handleFinalSubmit = async () => {
@@ -250,6 +263,16 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     if (!selectedCustomer) {
       showToast('يرجى اختيار العميل أولاً', 'error');
       setStep(1);
+      return;
+    }
+
+    // Financial check: Prevent totalAmount < actualNetPaid
+    if (isTotalLessThanNetPaid) {
+      showToast(
+        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+        'error'
+      );
+      setStep(4);
       return;
     }
 
@@ -308,7 +331,10 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       });
 
       if (isEditingMode && initialEditingOrder) {
-        // Update existing order
+        // Update existing order - preserve verified paidAmount and calculate remaining
+        const existingPaid = initialEditingOrder.pricing?.paidAmount || 0;
+        const newRemaining = Math.max(0, totalAmount - existingPaid);
+
         const updated = await updateOrder(initialEditingOrder.orderId, {
           garmentType: tailoringDetails.garmentType,
           quantity,
@@ -319,8 +345,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             unitPrice,
             quantity,
             totalAmount,
-            paidAmount,
-            remainingAmount,
+            paidAmount: existingPaid,
+            remainingAmount: newRemaining,
           },
           deliveryDate,
           assignedTailor,
@@ -376,8 +402,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   // Filtered customer search
   const filteredCustomers = customers.filter(
     (c) =>
-      c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.includes(searchQuery)
+      (c?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c?.phone || '').includes(searchQuery)
   );
 
   const stepsHeader = [
@@ -448,6 +474,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                       }
                     }
                     if (step === 4) {
+                      if (isTotalLessThanNetPaid) {
+                        showToast(
+                          `لا يمكن المتابعة: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+                          'error'
+                        );
+                        return;
+                      }
                       const fabricPricingCheck = validateFabricAndPricing({
                         fabric: tailoringDetails.fabric,
                         unitPrice,
@@ -858,24 +891,33 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">العربون المدفوع الآن (ر.س)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={totalAmount}
-                    value={paidAmount || ''}
-                    placeholder="0"
-                    onChange={(e) => setPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-emerald-700 text-center focus:bg-white focus:border-emerald-600"
-                  />
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    {isEditingMode ? 'المبلغ المدفوع المسجل (سندات القبض)' : 'العربون المدفوع الآن (ر.س)'}
+                  </label>
+                  {isEditingMode ? (
+                    <div className="w-full px-3 py-2 text-base font-black bg-stone-100 rounded-xl border border-stone-300 text-emerald-800 text-center flex items-center justify-center">
+                      {initialEditingOrder?.pricing?.paidAmount || 0} ر.س
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      max={totalAmount}
+                      value={paidAmount || ''}
+                      placeholder="0"
+                      onChange={(e) => setPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-emerald-700 text-center focus:bg-white focus:border-emerald-600"
+                    />
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">طريقة دفع العربون</label>
                   <select
+                    disabled={isEditingMode}
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm font-bold bg-slate-50 rounded-xl border border-slate-300 text-slate-900"
+                    className="w-full px-3 py-2 text-sm font-bold bg-slate-50 rounded-xl border border-slate-300 text-slate-900 disabled:opacity-60 disabled:bg-stone-100"
                   >
                     <option value="cash">نقدي (كاش)</option>
                     <option value="card">شبكة / مدى</option>
@@ -927,6 +969,20 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <div className="text-lg font-black text-[#1A365D] mt-0.5">{remainingAmount} ر.س</div>
                 </div>
               </div>
+
+              {isTotalLessThanNetPaid && (
+                <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 font-bold flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black text-rose-800 text-sm">
+                      تعارض مالي: إجمالي الطلب ({totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ر.س)!
+                    </p>
+                    <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
+                      لا يمكن تعديل السعر أو الكمية لقيمة تجعل إجمالي الطلب أقل مما تم قبضه فعلياً من العميل. يرجى تصحيح السعر/الكمية، أو إجراء سند استرداد للعميل من تفاصيل الطلب أولاً.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1028,7 +1084,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                   <span className="text-slate-400 block text-[11px]">الجيوب والأزرار:</span>
-                  <div className="font-bold text-slate-900">{tailoringDetails.pockets.chestPocketType === 'chamfered' ? 'جيب صدر مشطوف' : 'جيب عادي'}</div>
+                  <div className="font-bold text-slate-900">
+                    {tailoringDetails.pockets.name ||
+                      (tailoringDetails.pockets.chestPocketType === 'none'
+                        ? 'بدون جيب صدر'
+                        : tailoringDetails.pockets.chestPocketType === 'chamfered'
+                        ? 'جيب صدر مشطوف'
+                        : 'جيب صدر عادي')}
+                  </div>
                   <div className="text-slate-600 text-[11px]">{tailoringDetails.buttons.name}</div>
                   {(tailoringDetails.pockets.notes || tailoringDetails.buttons.notes || tailoringDetails.chest.notes) && (
                     <div className="text-[10px] text-stone-700">
@@ -1059,6 +1122,21 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               )}
             </div>
 
+            {/* Financial Conflict Alert in Review */}
+            {isTotalLessThanNetPaid && (
+              <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 font-bold flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black text-rose-800 text-sm">
+                    تعارض مالي يمنع الحفظ: إجمالي الطلب ({totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ر.س)!
+                  </p>
+                  <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
+                    يرجى الرجوع للخطوة السابقة وتصحيح سعر الثوب أو الكمية، أو إجراء سند استرداد للعميل أولاً.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Financials & Save Buttons */}
             <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-6 text-center sm:text-right">
@@ -1083,7 +1161,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
               <button
                 type="button"
-                disabled={isSubmitting || isSavedSuccessfully}
+                disabled={isSubmitting || isSavedSuccessfully || isTotalLessThanNetPaid}
                 onClick={handleFinalSubmit}
                 className="w-full sm:w-auto px-8 py-3 bg-[#1A365D] hover:bg-[#152C4D] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
