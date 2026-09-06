@@ -21,7 +21,9 @@ import {
   Eye,
   Trash2,
   AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
+import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 
 interface CustomerDetailModalProps {
   customer: Customer;
@@ -60,6 +62,8 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<Order | null>(null);
+  const [selectedWhatsAppOrder, setSelectedWhatsAppOrder] = useState<Order | null>(null);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   useEffect(() => {
     const shopId = currentShop?.shopId;
@@ -152,10 +156,22 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </h2>
-              <div className="flex items-center gap-3 text-xs text-stone-300 font-mono mt-0.5">
+              <div className="flex items-center gap-3 text-xs text-stone-300 font-mono mt-0.5 flex-wrap">
                 <span className="flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-amber-500" /> {customer.phone}
+                  <Phone className="w-3.5 h-3.5 text-amber-500" /> <span dir="ltr">{customer.phone}</span>
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedWhatsAppOrder(null);
+                    setIsWhatsAppOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-300 hover:text-white hover:bg-emerald-800 border border-emerald-700/60 text-[11px] font-bold transition-all cursor-pointer"
+                  title="مراسلة العميل عبر واتساب"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>واتساب</span>
+                </button>
                 {customer.address && (
                   <span className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-amber-500" /> {customer.address}
@@ -166,6 +182,19 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedWhatsAppOrder(null);
+                setIsWhatsAppOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+              title="تواصل مع العميل عبر واتساب"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-100" />
+              <span className="hidden sm:inline">تواصل عبر واتساب</span>
+              <span className="sm:hidden">واتساب</span>
+            </button>
             {canOrders && (
               <button
                 onClick={onNewOrder}
@@ -431,6 +460,19 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         )}
 
                         <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedWhatsAppOrder(order);
+                            setIsWhatsAppOpen(true);
+                          }}
+                          className="p-2 text-emerald-700 hover:text-white bg-white hover:bg-emerald-600 rounded-xl border border-emerald-200 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          title="مراسلة العميل عبر واتساب بخصوص هذا الطلب"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">واتساب</span>
+                        </button>
+
+                        <button
                           onClick={() => onPrintOrder(order)}
                           className="p-2 text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-100 rounded-xl border border-stone-200 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
                           title="طباعة نموذج التفصيل"
@@ -556,6 +598,22 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             setSelectedOrderForDetail(null);
             onEditOrder(ord);
           } : undefined}
+        />
+      )}
+
+      {/* WhatsApp Modal */}
+      {isWhatsAppOpen && (
+        <WhatsAppModal
+          isOpen={isWhatsAppOpen}
+          onClose={() => {
+            setIsWhatsAppOpen(false);
+            setSelectedWhatsAppOrder(null);
+          }}
+          customerName={customer.fullName}
+          phone={customer.phone}
+          orderNumber={selectedWhatsAppOrder?.orderNumber}
+          orderStatus={selectedWhatsAppOrder?.status}
+          shopName={currentShop?.name || currentShop?.shopName}
         />
       )}
     </div>

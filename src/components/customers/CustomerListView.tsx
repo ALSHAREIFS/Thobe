@@ -3,6 +3,7 @@ import { Customer, Order } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { CustomerDetailModal } from './CustomerDetailModal';
+import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import {
   Users,
   UserPlus,
@@ -16,11 +17,12 @@ import {
   Plus,
   Trash2,
   AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
 
 export const CustomerListView: React.FC = () => {
   const { customers, orders, createCustomer, deleteCustomer, setActiveTab, setSelectedCustomerId, setRepeatOrderTemplate, setOrderToPrint, startEditOrder, showToast } = useShop();
-  const { hasPermission } = useAuth();
+  const { hasPermission, currentShop } = useAuth();
 
   const canOrders = hasPermission('orders');
   const canMeasurements = hasPermission('measurements');
@@ -30,6 +32,7 @@ export const CustomerListView: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const [whatsAppCustomer, setWhatsAppCustomer] = useState<Customer | null>(null);
 
   // New customer form
   const [name, setName] = useState('');
@@ -189,9 +192,23 @@ export const CustomerListView: React.FC = () => {
                     <h3 className="font-black text-sm text-stone-900 group-hover:text-amber-800 transition-colors">
                       {customer.fullName}
                     </h3>
-                    <div className="flex items-center gap-1 text-xs text-stone-500 font-mono mt-0.5">
-                      <Phone className="w-3 h-3 text-stone-400" />
-                      {customer.phone}
+                    <div className="flex items-center gap-2 text-xs text-stone-500 font-mono mt-0.5">
+                      <div className="flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-stone-400" />
+                        <span dir="ltr">{customer.phone}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWhatsAppCustomer(customer);
+                        }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 text-[10px] font-bold transition-all cursor-pointer"
+                        title="مراسلة العميل عبر واتساب"
+                      >
+                        <MessageCircle className="w-3 h-3 text-emerald-600" />
+                        <span>واتساب</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -235,6 +252,18 @@ export const CustomerListView: React.FC = () => {
               })()}
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setWhatsAppCustomer(customer);
+                  }}
+                  className="p-1.5 text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                  title="مراسلة العميل عبر واتساب"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </button>
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -476,6 +505,17 @@ export const CustomerListView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* WhatsApp Chat Modal */}
+      {whatsAppCustomer && (
+        <WhatsAppModal
+          isOpen={Boolean(whatsAppCustomer)}
+          onClose={() => setWhatsAppCustomer(null)}
+          customerName={whatsAppCustomer.fullName}
+          phone={whatsAppCustomer.phone}
+          shopName={currentShop?.name || currentShop?.shopName}
+        />
       )}
     </div>
   );

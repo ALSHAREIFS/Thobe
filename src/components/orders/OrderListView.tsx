@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Order, OrderStatus } from '../../types';
 import { useShop } from '../../context/ShopContext';
+import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
 import { OrderDetailModal } from './OrderDetailModal';
+import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import {
   ShoppingBag,
   Plus,
@@ -18,6 +20,7 @@ import {
   Edit2,
   Trash2,
   AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
 
 export const OrderListView: React.FC = () => {
@@ -32,6 +35,7 @@ export const OrderListView: React.FC = () => {
     startRepeatOrder,
     startEditOrder,
   } = useShop();
+  const { currentShop } = useAuth();
 
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -40,6 +44,7 @@ export const OrderListView: React.FC = () => {
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
   const [orderToCancelWithWarning, setOrderToCancelWithWarning] = useState<Order | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [whatsAppOrder, setWhatsAppOrder] = useState<Order | null>(null);
 
   // Source of Truth Maps for per-order financials
   const paymentsByOrder = React.useMemo(() => {
@@ -214,6 +219,18 @@ export const OrderListView: React.FC = () => {
                       {order.customerName}
                     </span>
                     <span className="text-xs text-stone-400 font-mono">({order.customerPhone})</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWhatsAppOrder(order);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 text-[11px] font-bold transition-all cursor-pointer"
+                      title="مراسلة العميل عبر واتساب"
+                    >
+                      <MessageCircle className="w-3 h-3 text-emerald-600 group-hover:text-emerald-500" />
+                      <span>واتساب</span>
+                    </button>
                     <span
                       className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
                       style={{ backgroundColor: statusConfig.bg, color: statusConfig.color }}
@@ -249,6 +266,33 @@ export const OrderListView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {order.status === 'READY' ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWhatsAppOrder(order);
+                      }}
+                      className="px-2.5 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl border border-emerald-500 transition-all text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      title="إبلاغ العميل بجاهزية الثوب عبر واتساب"
+                    >
+                      <MessageCircle className="w-4 h-4 text-emerald-100" />
+                      <span className="hidden sm:inline">إبلاغ بالجاهزية</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWhatsAppOrder(order);
+                      }}
+                      className="p-2 text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 rounded-xl border border-emerald-200 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      title="مراسلة العميل عبر واتساب"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={(e) => {
@@ -532,6 +576,19 @@ export const OrderListView: React.FC = () => {
         </div>
         );
       })()}
+
+      {/* WhatsApp Chat Modal */}
+      {whatsAppOrder && (
+        <WhatsAppModal
+          isOpen={Boolean(whatsAppOrder)}
+          onClose={() => setWhatsAppOrder(null)}
+          customerName={whatsAppOrder.customerName}
+          phone={whatsAppOrder.customerPhone}
+          orderNumber={whatsAppOrder.orderNumber}
+          orderStatus={whatsAppOrder.status}
+          shopName={currentShop?.name || currentShop?.shopName}
+        />
+      )}
     </div>
   );
 };

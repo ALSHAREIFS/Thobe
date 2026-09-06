@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
 import { CustomerDetailModal } from '../customers/CustomerDetailModal';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
+import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import { Customer, Order } from '../../types';
 import {
   Scissors,
@@ -24,6 +25,7 @@ import {
   Phone,
   Search,
   ArrowRight,
+  MessageCircle,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
@@ -43,6 +45,7 @@ export const DashboardView: React.FC = () => {
 
   const [selectedCustomerForModal, setSelectedCustomerForModal] = useState<Customer | null>(null);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [selectedOrderForWhatsApp, setSelectedOrderForWhatsApp] = useState<Order | null>(null);
 
   // Permission flags
   const canOrders = hasPermission('orders');
@@ -335,6 +338,15 @@ export const DashboardView: React.FC = () => {
 
                           <button
                             type="button"
+                            onClick={() => setSelectedOrderForWhatsApp(order)}
+                            className="p-1.5 text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                            title="مراسلة العميل عبر واتساب"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => setSelectedOrderForModal(order)}
                             className="px-2.5 py-1.5 text-xs font-bold text-[#1A365D] hover:text-white bg-blue-50 hover:bg-[#1A365D] rounded-lg border border-blue-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
                             title="عرض تفاصيل الطلب والحالة المالية"
@@ -574,6 +586,19 @@ export const DashboardView: React.FC = () => {
             setSelectedOrderForModal(null);
             startEditOrder(ord);
           }}
+        />
+      )}
+
+      {/* WhatsApp Modal */}
+      {selectedOrderForWhatsApp && (
+        <WhatsAppModal
+          isOpen={Boolean(selectedOrderForWhatsApp)}
+          onClose={() => setSelectedOrderForWhatsApp(null)}
+          customerName={selectedOrderForWhatsApp.customerName}
+          phone={selectedOrderForWhatsApp.customerPhone}
+          orderNumber={selectedOrderForWhatsApp.orderNumber}
+          orderStatus={selectedOrderForWhatsApp.status}
+          shopName={currentShop?.name || currentShop?.shopName}
         />
       )}
     </div>
