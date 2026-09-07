@@ -3,6 +3,7 @@ import { Customer, CustomerMeasurement, Order } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
+import { getUnitLabel } from '../../utils/measurementConversion';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
 import {
   X,
@@ -339,9 +340,14 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   return (
                     <div key={mRec.id || idx} className="p-4 bg-stone-50 rounded-2xl border border-stone-200">
                       <div className="flex items-center justify-between text-xs text-stone-500 mb-2">
-                        <span className="font-bold text-stone-800">
-                          {idx === 0 ? '★ المقاس الحالي المعتمد' : 'مقاس سابق'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-stone-800">
+                            {idx === 0 ? '★ المقاس الحالي المعتمد' : 'مقاس سابق'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            الوحدة: {getUnitLabel(mRec.unit)}
+                          </span>
+                        </div>
                         <span>أخذ القياس: {mRec.measuredByName || 'الخياط'} ({new Date(mRec.date).toLocaleDateString('ar-SA')})</span>
                       </div>
 

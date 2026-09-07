@@ -33,6 +33,10 @@ import {
   MeasurementData,
   EmployeePermissions,
   DEFAULT_EMPLOYEE_PERMISSIONS,
+  DEFAULT_MAX_EMPLOYEES,
+  MAX_SAFE_EMPLOYEES,
+  EMPLOYEE_ERROR_CODES,
+  EmployeeDomainError,
 } from '../types';
 
 // Helper to format Firestore errors clearly
@@ -231,6 +235,8 @@ export const TailorService = {
       taxNumber?: string;
       currency?: string;
       defaultDeliveryDays?: number;
+      maxEmployees?: number;
+      subscriptionPlan?: string;
     },
     ownerData: {
       fullName: string;
@@ -276,6 +282,10 @@ export const TailorService = {
         ownerUid,
         ownerEmail: ownerData.email.trim().toLowerCase(),
         ownerName: ownerData.fullName.trim(),
+        maxEmployees: typeof shopData.maxEmployees === 'number' && shopData.maxEmployees >= 0 ? shopData.maxEmployees : DEFAULT_MAX_EMPLOYEES,
+        employeeCount: 0,
+        subscriptionPlan: shopData.subscriptionPlan || 'STARTER',
+        subscriptionStatus: 'ACTIVE',
         createdAt: now,
         updatedAt: now,
       };
@@ -663,6 +673,17 @@ export const TailorService = {
         ...data,
         updatedAt: now,
       };
+
+      // Invariant C: Protected fields cannot be modified via general shop updates
+      delete updatedData.maxEmployees;
+      delete updatedData.employeeCount;
+      delete updatedData.subscriptionPlan;
+      delete updatedData.subscriptionStatus;
+      delete updatedData.status;
+      delete updatedData.ownerUid;
+      delete updatedData.shopId;
+      delete updatedData.createdAt;
+
       if (data.shopName && !data.name) {
         updatedData.name = data.shopName;
       }
@@ -1329,25 +1350,65 @@ export const TailorService = {
         }
 
         const orderData = orderSnap.data() as Order;
-        const totalAmount = Number(orderData.pricing?.totalAmount || 0);
-        const currentPaid = Number(orderData.pricing?.paidAmount || 0);
-        const currentRefunded = Number((orderData.pricing as any)?.refundedAmount || 0);
-        const currentNetPaid = Math.max(0, currentPaid - currentRefunded);
-        const remainingAmount = Math.max(0, totalAmount - currentNetPaid);
 
-        if (data.amount > remainingAmount) {
-          throw new Error('المبلغ المدخل أكبر من المبلغ المتبقي على الطلب.');
+        // 1. Canonical Guard: CANCELLED orders must NEVER accept payments
+        if (orderData.status === 'CANCELLED') {
+          throw new Error('لا يمكن إضافة دفعة مالية لطلب ملغي.');
         }
 
-        const newPaidAmount = currentPaid + data.amount;
-        const newRemaining = Math.max(0, totalAmount - (newPaidAmount - currentRefunded));
+        // 2. Fetch linked payment documents and refund documents to compute verified ledger
+        const [paysById, refsById] = await Promise.all([
+          getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', data.orderId))),
+          getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', data.orderId))),
+        ]);
 
-        // 1. Create the immutable payment document
+        const payDocsMap = new Map<string, any>();
+        paysById.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+
+        const refDocsMap = new Map<string, any>();
+        refsById.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
+
+        if (orderData.orderNumber && orderData.orderNumber !== data.orderId) {
+          const [paysByNum, refsByNum] = await Promise.all([
+            getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderData.orderNumber))),
+            getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderData.orderNumber))),
+          ]);
+          paysByNum.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+          refsByNum.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
+        }
+
+        let grossPaid = 0;
+        payDocsMap.forEach((pData) => {
+          grossPaid += Number(pData?.amount) || 0;
+        });
+
+        let grossRefunded = 0;
+        refDocsMap.forEach((rData) => {
+          grossRefunded += Number(rData?.amount) || 0;
+        });
+
+        grossPaid = Math.round(grossPaid * 100) / 100;
+        grossRefunded = Math.round(grossRefunded * 100) / 100;
+        const totalAmount = Math.round((Number(orderData.pricing?.totalAmount) || 0) * 100) / 100;
+        const netPaid = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
+        const remainingAmount = Math.max(0, Math.round((totalAmount - netPaid) * 100) / 100);
+
+        if (data.amount > remainingAmount) {
+          throw new Error(
+            `المبلغ المدخل (${data.amount} ر.س) أكبر من المبلغ المتبقي الفعلي على الطلب (${remainingAmount} ر.س).`
+          );
+        }
+
+        const newGrossPaid = Math.round((grossPaid + data.amount) * 100) / 100;
+        const newNetPaid = Math.max(0, Math.round((newGrossPaid - grossRefunded) * 100) / 100);
+        const newRemaining = Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
+
+        // 3. Create the immutable payment document
         transaction.set(payRef, newPayment);
 
-        // 2. Update order pricing counters atomically
+        // 4. Update order pricing counters atomically
         transaction.update(orderRef, {
-          'pricing.paidAmount': newPaidAmount,
+          'pricing.paidAmount': newGrossPaid,
           'pricing.remainingAmount': newRemaining,
           financialLocked: true,
           updatedAt: now,
@@ -1490,9 +1551,40 @@ export const TailorService = {
             throw new Error('معرف المتجر غير متطابق مع بيانات الطلب.');
           }
 
-          const paidAmount = Number(orderData.pricing?.paidAmount || 0);
-          const currentRefundedAmount = Number((orderData.pricing as any)?.refundedAmount || 0);
-          const maxRefundable = Math.max(0, paidAmount - currentRefundedAmount);
+          // Fetch linked payment documents and refund documents to compute verified ledger
+          const [paysById, refsById] = await Promise.all([
+            getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', data.orderId))),
+            getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', data.orderId))),
+          ]);
+
+          const payDocsMap = new Map<string, any>();
+          paysById.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+
+          const refDocsMap = new Map<string, any>();
+          refsById.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
+
+          if (orderData.orderNumber && orderData.orderNumber !== data.orderId) {
+            const [paysByNum, refsByNum] = await Promise.all([
+              getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderData.orderNumber))),
+              getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderData.orderNumber))),
+            ]);
+            paysByNum.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+            refsByNum.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
+          }
+
+          let grossPaid = 0;
+          payDocsMap.forEach((pData) => {
+            grossPaid += Number(pData?.amount) || 0;
+          });
+
+          let grossRefunded = 0;
+          refDocsMap.forEach((rData) => {
+            grossRefunded += Number(rData?.amount) || 0;
+          });
+
+          grossPaid = Math.round(grossPaid * 100) / 100;
+          grossRefunded = Math.round(grossRefunded * 100) / 100;
+          const maxRefundable = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
 
           if (data.amount > maxRefundable) {
             throw new Error(
@@ -1500,14 +1592,18 @@ export const TailorService = {
             );
           }
 
-          const newRefundedCounter = currentRefundedAmount + data.amount;
+          const newRefundedCounter = Math.round((grossRefunded + data.amount) * 100) / 100;
+          const totalAmount = Math.round((Number(orderData.pricing?.totalAmount) || 0) * 100) / 100;
+          const newNetPaid = Math.max(0, Math.round((grossPaid - newRefundedCounter) * 100) / 100);
+          const newRemaining = orderData.status === 'CANCELLED' ? 0 : Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
 
           // 1. Create immutable refund document
           transaction.set(refundDocRef, newRefund);
 
-          // 2. Update order refunded amount counter atomically
+          // 2. Update order refunded amount and remaining counters atomically
           transaction.update(orderRef, {
             'pricing.refundedAmount': newRefundedCounter,
+            'pricing.remainingAmount': newRemaining,
             financialLocked: true,
             updatedAt: now,
           });
@@ -1562,8 +1658,39 @@ export const TailorService = {
   },
 
   /**
+   * Get current shop seat status (active count vs max limit)
+   */
+  async getShopSeatStatus(shopId: string): Promise<{
+    maxEmployees: number;
+    employeeCount: number;
+    remainingSeats: number;
+    isAtLimit: boolean;
+  }> {
+    const shopRef = doc(db, 'shops', shopId);
+    const snap = await getDoc(shopRef);
+    if (!snap.exists()) {
+      throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.SHOP_NOT_FOUND, 'المتجر غير موجود');
+    }
+    const data = snap.data() as Partial<Shop>;
+    const maxEmployees = typeof data.maxEmployees === 'number' ? data.maxEmployees : DEFAULT_MAX_EMPLOYEES;
+    const employeeCount = typeof data.employeeCount === 'number' ? data.employeeCount : 0;
+    const remainingSeats = Math.max(0, maxEmployees - employeeCount);
+    return {
+      maxEmployees,
+      employeeCount,
+      remainingSeats,
+      isAtLimit: employeeCount >= maxEmployees,
+    };
+  },
+
+  /**
    * SHOP adds a new employee with Firebase Auth account & Granular 5 Permissions.
-   * Handles Partial Failure by attempting Auth user deletion / rollback.
+   * 1. PRE-CHECK: Fast capacity validation on /shops/{shopId} before creating Auth user.
+   * 2. AUTH CREATION: Create Firebase Auth user using secondary app.
+   * 3. ATOMIC TRANSACTION: In a single atomic Firestore transaction, verifies capacity,
+   *    increments employeeCount, writes lastSeatAction: { action: 'CREATE', employeeUid, timestamp },
+   *    and creates the employee documents in /shops/{shopId}/users/{uid} and /users/{uid}.
+   * 4. COMPENSATION: If the atomic Firestore transaction fails, deletes the newly created Auth user.
    */
   async addEmployeeWithAuth(
     shopId: string,
@@ -1578,85 +1705,170 @@ export const TailorService = {
     initialPassword: string,
     createdByUid?: string
   ): Promise<UserProfile> {
+    // STEP 1 — PRE-FLIGHT CAPACITY CHECK
+    const shopRef = doc(db, 'shops', shopId);
+    const preCheckSnap = await getDoc(shopRef);
+    if (!preCheckSnap.exists()) {
+      throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.SHOP_NOT_FOUND, 'المتجر غير موجود');
+    }
+    const preShopData = preCheckSnap.data() as Partial<Shop>;
+    
+    // TASK 5: If employeeCount or maxEmployees is missing, block normal seat modification until reconciled by Super Admin
+    if (typeof preShopData.employeeCount !== 'number' || typeof preShopData.maxEmployees !== 'number') {
+      throw new EmployeeDomainError(
+        EMPLOYEE_ERROR_CODES.RECONCILIATION_REQUIRED,
+        'يتطلب المتجر مطابقة وتحديث بيانات مقاعد الموظفين من قبل مسؤول المنصة قبل إضافة موظفين جدد.'
+      );
+    }
+
+    const preMax = preShopData.maxEmployees;
+    const preCount = preShopData.employeeCount;
+    if (preCount >= preMax) {
+      throw new EmployeeDomainError(
+        EMPLOYEE_ERROR_CODES.LIMIT_REACHED,
+        `لقد وصلت إلى الحد الأقصى لحسابات الموظفين المسموح بها في اشتراكك (${preMax} موظفين). لا يمكن إضافة موظف جديد.`
+      );
+    }
+
     let tempApp: any = null;
     let createdAuthUser: any = null;
+    let employeeUid = '';
 
+    // STEP 2 — CREATE FIREBASE AUTH USER via secondary app
     try {
-      const now = new Date().toISOString();
-      const currentAuthUid = createdByUid || auth.currentUser?.uid || '';
-      const permissions: EmployeePermissions = {
-        customers: !!data.permissions?.customers,
-        measurements: !!data.permissions?.measurements,
-        orders: !!data.permissions?.orders,
-        payments: !!data.permissions?.payments,
-        reports: !!data.permissions?.reports,
-      };
-
       const tempAppName = `EmployeeSecondaryApp_${Date.now()}_${Math.random()}`;
       tempApp = initSecondaryApp(firebaseConfig, tempAppName);
       const tempAuth = getSecondaryAuth(tempApp);
 
-      // 1. Create Firebase Auth user
       const userCred = await createUserWithEmailAndPassword(
         tempAuth,
         data.email.trim(),
         initialPassword
       );
       createdAuthUser = userCred.user;
-      const employeeUid = createdAuthUser.uid;
+      employeeUid = createdAuthUser.uid;
+    } catch (authErr: any) {
+      console.error('Auth user creation failed:', authErr);
+      throw new EmployeeDomainError(
+        EMPLOYEE_ERROR_CODES.CREATION_FAILED,
+        `فشل إنشاء حساب الدخول للموظف: ${parseFirebaseError(authErr)}`
+      );
+    }
 
-      // 2. Build strict employee profile
-      const newEmployee: UserProfile = {
-        userId: employeeUid,
-        uid: employeeUid,
-        shopId,
-        fullName: data.fullName.trim(),
-        email: data.email.trim().toLowerCase(),
-        phone: data.phone.trim(),
-        role: 'EMPLOYEE',
-        permissions,
-        isActive: true,
-        createdAt: now,
-        createdBy: currentAuthUid,
-      };
+    // STEP 3 — ATOMIC FIRESTORE TRANSACTION
+    const now = new Date().toISOString();
+    const currentAuthUid = createdByUid || auth.currentUser?.uid || '';
+    const permissions: EmployeePermissions = {
+      customers: !!data.permissions?.customers,
+      measurements: !!data.permissions?.measurements,
+      orders: !!data.permissions?.orders,
+      payments: !!data.permissions?.payments,
+      reports: !!data.permissions?.reports,
+    };
 
-      // 3. Write simultaneously to /users/{uid} and /shops/{shopId}/users/{uid}
-      try {
-        await setDoc(doc(db, 'users', employeeUid), newEmployee);
-        await setDoc(doc(db, `shops/${shopId}/users`, employeeUid), newEmployee);
-      } catch (firestoreErr: any) {
-        console.error('Firestore write failed after Auth creation. Initiating rollback...', firestoreErr);
-        
-        // Attempt Cleanup / Rollback of the orphaned Auth account
-        let rollbackSucceeded = false;
-        try {
-          if (createdAuthUser && typeof createdAuthUser.delete === 'function') {
-            await createdAuthUser.delete();
-            rollbackSucceeded = true;
-          }
-        } catch (cleanupErr) {
-          console.error('Failed to cleanup orphaned Auth user during rollback:', cleanupErr);
-          rollbackSucceeded = false;
+    const newEmployee: UserProfile = {
+      userId: employeeUid,
+      uid: employeeUid,
+      shopId,
+      fullName: data.fullName.trim(),
+      email: data.email.trim().toLowerCase(),
+      phone: data.phone.trim(),
+      role: 'EMPLOYEE',
+      permissions,
+      isActive: true,
+      createdAt: now,
+      createdBy: currentAuthUid,
+    };
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const currentShopSnap = await transaction.get(shopRef);
+        if (!currentShopSnap.exists()) {
+          throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.SHOP_NOT_FOUND, 'المتجر غير موجود');
         }
 
-        if (rollbackSucceeded) {
-          throw new Error(`تعذر إكمال تسجيل الموظف في قاعدة البيانات وتم التراجع عن إنشاء الحساب: ${parseFirebaseError(firestoreErr)}`);
-        } else {
-          throw new Error(`فشل تسجيل بيانات الموظف في قاعدة البيانات، وتعذر التراجع عن حساب الدخول (${data.email}). يرجى مراجعة الدعم أو المحاولة ببريد آخر.`);
+        const currentData = currentShopSnap.data() as Partial<Shop>;
+        if (typeof currentData.employeeCount !== 'number' || typeof currentData.maxEmployees !== 'number') {
+          throw new EmployeeDomainError(
+            EMPLOYEE_ERROR_CODES.RECONCILIATION_REQUIRED,
+            'يتطلب المتجر مطابقة وتحديث بيانات مقاعد الموظفين من قبل مسؤول المنصة قبل إضافة موظفين جدد.'
+          );
         }
-      }
+
+        const maxEmployees = currentData.maxEmployees;
+        const currentCount = currentData.employeeCount;
+
+        // Re-verify limit inside the transaction lock
+        if (currentCount >= maxEmployees) {
+          throw new EmployeeDomainError(
+            EMPLOYEE_ERROR_CODES.LIMIT_REACHED,
+            `لقد وصلت إلى الحد الأقصى لحسابات الموظفين المسموح بها في اشتراكك (${maxEmployees} موظفين). تعذر إكمال الإضافة.`
+          );
+        }
+
+        const empShopRef = doc(db, `shops/${shopId}/users`, employeeUid);
+        const globalUserRef = doc(db, 'users', employeeUid);
+
+        // Update Shop with new counter AND lastSeatAction marker
+        const shopUpdatePayload: any = {
+          employeeCount: currentCount + 1,
+          lastSeatAction: {
+            action: 'CREATE',
+            employeeUid: employeeUid,
+            timestamp: now,
+          },
+          updatedAt: now,
+        };
+        if (typeof currentData.maxEmployees !== 'number') {
+          shopUpdatePayload.maxEmployees = DEFAULT_MAX_EMPLOYEES;
+        }
+
+        transaction.update(shopRef, shopUpdatePayload);
+        transaction.set(empShopRef, newEmployee);
+        transaction.set(globalUserRef, newEmployee);
+      });
 
       return newEmployee;
-    } catch (err: any) {
-      console.error('Error adding employee:', err);
-      throw new Error(err.message || parseFirebaseError(err));
+    } catch (firestoreErr: any) {
+      console.error('Atomic Firestore transaction failed after Auth creation. Compensating by deleting Auth user...', firestoreErr);
+
+      // COMPENSATION: Delete the newly-created Auth user since Firestore write failed
+      let authCleanedUp = false;
+      try {
+        if (createdAuthUser && typeof createdAuthUser.delete === 'function') {
+          await createdAuthUser.delete();
+          authCleanedUp = true;
+        }
+      } catch (authDelErr) {
+        console.error('Failed to delete orphaned Auth user in compensation:', authDelErr);
+        authCleanedUp = false;
+      }
+
+      if (authCleanedUp) {
+        if (firestoreErr instanceof EmployeeDomainError) {
+          throw firestoreErr;
+        }
+        throw new EmployeeDomainError(
+          EMPLOYEE_ERROR_CODES.CREATION_FAILED,
+          `تعذر حفظ بيانات الموظف في قاعدة البيانات وتم إلغاء حساب الدخول بنجاح: ${parseFirebaseError(firestoreErr)}`
+        );
+      } else {
+        throw new EmployeeDomainError(
+          EMPLOYEE_ERROR_CODES.CREATION_PARTIAL_FAILURE,
+          `فشل حفظ بيانات الموظف في قاعدة البيانات (${data.email}). تعذر حذف حساب الدخول تلقائياً (حساب معلق يتطلب مراجعة الدعم).`,
+          {
+            email: data.email,
+            uid: employeeUid,
+            authCleanedUp: false,
+            rawError: parseFirebaseError(firestoreErr),
+          }
+        );
+      }
     } finally {
       if (tempApp) {
         try {
           await deleteApp(tempApp);
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
     }
   },
@@ -1692,40 +1904,161 @@ export const TailorService = {
   },
 
   /**
-   * Toggle employee active status (isActive: true / false)
+   * Toggle employee active status (isActive: true / false) with atomic seat count handling.
+   * INVARIANT G: Disabling an employee frees a seat (count - 1). Prevents double decrement.
+   * INVARIANT H: Reactivating an employee requires an available seat (count < maxEmployees).
    */
   async toggleEmployeeStatus(
     shopId: string,
     userId: string,
-    isActive: boolean
+    nextStatus: boolean
   ): Promise<void> {
     try {
-      await updateDoc(doc(db, `shops/${shopId}/users`, userId), {
-        isActive,
+      await runTransaction(db, async (transaction) => {
+        const shopRef = doc(db, 'shops', shopId);
+        const empShopRef = doc(db, `shops/${shopId}/users`, userId);
+
+        const [shopSnap, empSnap] = await Promise.all([
+          transaction.get(shopRef),
+          transaction.get(empShopRef),
+        ]);
+
+        if (!shopSnap.exists()) {
+          throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.SHOP_NOT_FOUND, 'المتجر غير موجود');
+        }
+        if (!empSnap.exists()) {
+          throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.CREATION_FAILED, 'سجل الموظف غير موجود في المتجر');
+        }
+
+        const shopData = shopSnap.data() as Partial<Shop>;
+        const empData = empSnap.data() as Partial<UserProfile>;
+        
+        // TASK 5: If employeeCount or maxEmployees is missing, block seat changes until reconciled by Super Admin
+        if (typeof shopData.employeeCount !== 'number' || typeof shopData.maxEmployees !== 'number') {
+          throw new EmployeeDomainError(
+            EMPLOYEE_ERROR_CODES.RECONCILIATION_REQUIRED,
+            'يتطلب المتجر مطابقة وتحديث بيانات مقاعد الموظفين من قبل مسؤول المنصة قبل تعديل حالة الموظف.'
+          );
+        }
+
+        const maxEmployees = shopData.maxEmployees;
+        const currentCount = shopData.employeeCount;
+        const currentIsActive = empData.isActive !== false; // Default true if missing
+
+        const now = new Date().toISOString();
+        if (nextStatus === false) {
+          // Deactivating
+          if (!currentIsActive) {
+            // Already inactive: do NOT decrement! Prevent double decrement.
+            return;
+          }
+          const newCount = Math.max(0, currentCount - 1);
+          transaction.update(empShopRef, { isActive: false, updatedAt: now });
+          transaction.update(shopRef, {
+            employeeCount: newCount,
+            lastSeatAction: {
+              action: 'DEACTIVATE',
+              employeeUid: userId,
+              timestamp: now,
+            },
+            updatedAt: now,
+          });
+        } else {
+          // Reactivating
+          if (currentIsActive) {
+            // Already active
+            return;
+          }
+          if (currentCount >= maxEmployees) {
+            throw new EmployeeDomainError(
+              EMPLOYEE_ERROR_CODES.LIMIT_REACHED,
+              `لا يمكن إعادة تفعيل حساب الموظف، لأن المتجر وصل للحد الأقصى لحسابات الموظفين النشطة (${maxEmployees} موظفين). يرجى ترقية الاشتراك أو تعطيل موظف نشط أولاً.`
+            );
+          }
+          const newCount = currentCount + 1;
+          transaction.update(empShopRef, { isActive: true, updatedAt: now });
+          transaction.update(shopRef, {
+            employeeCount: newCount,
+            lastSeatAction: {
+              action: 'REACTIVATE',
+              employeeUid: userId,
+              timestamp: now,
+            },
+            updatedAt: now,
+          });
+        }
       });
 
-      await updateDoc(doc(db, 'users', userId), {
-        isActive,
-      });
+      // Synchronize global lookup /users/{userId}
+      try {
+        await updateDoc(doc(db, 'users', userId), { isActive: nextStatus, updatedAt: new Date().toISOString() });
+      } catch (syncErr) {
+        console.warn('Could not sync isActive to global users collection:', syncErr);
+      }
     } catch (err: any) {
       console.error('Error updating employee active status:', err);
+      if (err instanceof EmployeeDomainError) {
+        throw err;
+      }
       throw new Error(parseFirebaseError(err));
     }
   },
 
   /**
-   * Delete employee document from shop membership and revoke access (V1)
+   * Delete employee document from shop membership and revoke access.
+   * If the employee was active, decrements employeeCount exactly once.
+   * If the employee was already inactive, does NOT decrement employeeCount.
    */
   async deleteEmployeeDoc(shopId: string, userId: string): Promise<void> {
     try {
-      // First deactivate
-      await this.toggleEmployeeStatus(shopId, userId, false);
+      const now = new Date().toISOString();
+      await runTransaction(db, async (transaction) => {
+        const shopRef = doc(db, 'shops', shopId);
+        const empShopRef = doc(db, `shops/${shopId}/users`, userId);
 
-      // Remove from shop subcollection
-      await deleteDoc(doc(db, `shops/${shopId}/users`, userId));
+        const [shopSnap, empSnap] = await Promise.all([
+          transaction.get(shopRef),
+          transaction.get(empShopRef),
+        ]);
+
+        if (!empSnap.exists()) {
+          return;
+        }
+
+        const empData = empSnap.data() as Partial<UserProfile>;
+        const wasActive = empData.isActive !== false;
+
+        if (shopSnap.exists() && wasActive) {
+          const shopData = shopSnap.data() as Partial<Shop>;
+          if (typeof shopData.employeeCount !== 'number' || typeof shopData.maxEmployees !== 'number') {
+            throw new EmployeeDomainError(
+              EMPLOYEE_ERROR_CODES.RECONCILIATION_REQUIRED,
+              'يتطلب المتجر مطابقة وتحديث بيانات مقاعد الموظفين من قبل مسؤول المنصة قبل حذف موظف نشط.'
+            );
+          }
+          const currentCount = shopData.employeeCount;
+          const newCount = Math.max(0, currentCount - 1);
+          transaction.update(shopRef, {
+            employeeCount: newCount,
+            lastSeatAction: {
+              action: 'DELETE',
+              employeeUid: userId,
+              timestamp: now,
+            },
+            updatedAt: now,
+          });
+        }
+
+        // Delete from shop subcollection
+        transaction.delete(empShopRef);
+      });
 
       // Remove from global users lookup
-      await deleteDoc(doc(db, 'users', userId));
+      try {
+        await deleteDoc(doc(db, 'users', userId));
+      } catch (delErr) {
+        console.warn('Could not delete global user doc:', delErr);
+      }
     } catch (err: any) {
       console.error('Error deleting employee document:', err);
       throw new Error(parseFirebaseError(err));
@@ -1734,6 +2067,95 @@ export const TailorService = {
 
   async deleteEmployee(shopId: string, userId: string): Promise<void> {
     return this.deleteEmployeeDoc(shopId, userId);
+  },
+
+  /**
+   * Reconciles the authoritative employee count against actual active employee docs.
+   * INVARIANT I: Legacy shops with missing fields are initialized (maxEmployees: 3 if missing).
+   * Over-limit legacy shops are reconciled to their real active count without breaking existing users.
+   */
+  async reconcileShopEmployeeCount(shopId: string): Promise<{
+    shopId: string;
+    actualActiveCount: number;
+    maxEmployees: number;
+    previousCount: number;
+  }> {
+    try {
+      // 1. Query all employee docs in shop
+      const staffRef = collection(db, `shops/${shopId}/users`);
+      const q = query(staffRef, where('role', '==', 'EMPLOYEE'));
+      const snap = await getDocs(q);
+
+      // Count active employees (isActive === true or undefined)
+      let actualActiveCount = 0;
+      snap.forEach((d) => {
+        const data = d.data() as Partial<UserProfile>;
+        if (data.isActive !== false) {
+          actualActiveCount++;
+        }
+      });
+
+      // 2. Read shop doc
+      const shopRef = doc(db, 'shops', shopId);
+      const shopSnap = await getDoc(shopRef);
+      if (!shopSnap.exists()) {
+        throw new EmployeeDomainError(EMPLOYEE_ERROR_CODES.SHOP_NOT_FOUND, 'المتجر غير موجود');
+      }
+
+      const shopData = shopSnap.data() as Partial<Shop>;
+      const previousCount = typeof shopData.employeeCount === 'number' ? shopData.employeeCount : 0;
+      const existingMax = typeof shopData.maxEmployees === 'number' ? shopData.maxEmployees : undefined;
+      const maxEmployees = existingMax !== undefined ? existingMax : DEFAULT_MAX_EMPLOYEES;
+
+      const updatePayload: any = {
+        employeeCount: actualActiveCount,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Only write maxEmployees if currently missing! Never overwrite existing explicit maxEmployees
+      if (existingMax === undefined) {
+        updatePayload.maxEmployees = DEFAULT_MAX_EMPLOYEES;
+      }
+
+      await updateDoc(shopRef, updatePayload);
+
+      return {
+        shopId,
+        actualActiveCount,
+        maxEmployees,
+        previousCount,
+      };
+    } catch (err: any) {
+      console.error('Error reconciling shop employee count:', err);
+      throw new Error(parseFirebaseError(err));
+    }
+  },
+
+  /**
+   * Super Admin modifies maxEmployees seat limit for a shop.
+   * INVARIANT D: Only SUPER_ADMIN is allowed.
+   */
+  async adminUpdateShopSeatLimit(shopId: string, maxEmployees: number): Promise<Shop> {
+    try {
+      if (!Number.isInteger(maxEmployees) || maxEmployees < 0 || maxEmployees > MAX_SAFE_EMPLOYEES) {
+        throw new EmployeeDomainError(
+          EMPLOYEE_ERROR_CODES.INVALID_SEAT_LIMIT,
+          `الحد الأقصى للموظفين يجب أن يكون رقماً صحيحاً بين 0 و ${MAX_SAFE_EMPLOYEES}`
+        );
+      }
+
+      const shopRef = doc(db, 'shops', shopId);
+      await updateDoc(shopRef, {
+        maxEmployees,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return await this.getShop(shopId);
+    } catch (err: any) {
+      console.error('Error in adminUpdateShopSeatLimit:', err);
+      if (err instanceof EmployeeDomainError) throw err;
+      throw new Error(parseFirebaseError(err));
+    }
   },
 };
 

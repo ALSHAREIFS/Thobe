@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
-import { Shop, ShopRequest, ShopStatus, SHOP_STATUS_MAP } from '../../types';
+import { Shop, ShopRequest, ShopStatus, SHOP_STATUS_MAP, DEFAULT_MAX_EMPLOYEES } from '../../types';
 import {
   ShieldAlert,
   Store,
@@ -60,6 +60,12 @@ export const PlatformAdminDashboard: React.FC = () => {
   // Status Toggle Modal State (Suspend / Reactivate)
   const [statusModalShop, setStatusModalShop] = useState<{ shop: Shop; nextStatus: ShopStatus } | null>(null);
 
+  // Seat Management Modal State (Super Admin)
+  const [seatModalShop, setSeatModalShop] = useState<Shop | null>(null);
+  const [seatLimitInput, setSeatLimitInput] = useState<number>(DEFAULT_MAX_EMPLOYEES);
+  const [updatingSeats, setUpdatingSeats] = useState(false);
+  const [reconcilingSeats, setReconcilingSeats] = useState(false);
+
   // Reject Request Modal State
   const [rejectModalRequest, setRejectModalRequest] = useState<ShopRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('لم يستوفِ الشروط المحددة');
@@ -74,6 +80,8 @@ export const PlatformAdminDashboard: React.FC = () => {
   const [manualOwnerEmail, setManualOwnerEmail] = useState('');
   const [manualOwnerPhone, setManualOwnerPhone] = useState('');
   const [manualOwnerPassword, setManualOwnerPassword] = useState('Thobi@2026');
+  const [manualMaxEmployees, setManualMaxEmployees] = useState<number>(DEFAULT_MAX_EMPLOYEES);
+  const [manualSubscriptionPlan, setManualSubscriptionPlan] = useState<'STARTER' | 'PRO' | 'ENTERPRISE'>('STARTER');
 
   const loadPlatformData = useCallback(async () => {
     try {
@@ -204,6 +212,8 @@ export const PlatformAdminDashboard: React.FC = () => {
           address: manualAddress,
           crNumber: manualCrNumber,
           taxNumber: manualTaxNumber,
+          maxEmployees: manualMaxEmployees,
+          subscriptionPlan: manualSubscriptionPlan,
         },
         {
           fullName: manualOwnerName,
@@ -228,6 +238,8 @@ export const PlatformAdminDashboard: React.FC = () => {
       setManualAddress('');
       setManualCrNumber('');
       setManualTaxNumber('');
+      setManualMaxEmployees(DEFAULT_MAX_EMPLOYEES);
+      setManualSubscriptionPlan('STARTER');
 
       setActionSuccessMessage(`تم إنشاء وتفعيل متجر "${res.shop.name}" بنجاح!`);
       await loadPlatformData();
@@ -235,6 +247,55 @@ export const PlatformAdminDashboard: React.FC = () => {
       setActionErrorMessage(err.message || 'فشل إنشاء المتجر');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleOpenSeatModal = (shop: Shop) => {
+    setSeatModalShop(shop);
+    setSeatLimitInput(typeof shop.maxEmployees === 'number' ? shop.maxEmployees : DEFAULT_MAX_EMPLOYEES);
+  };
+
+  const handleUpdateSeatLimit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!seatModalShop) return;
+    const currentCount = seatModalShop.employeeCount ?? 0;
+    if (seatLimitInput < currentCount) {
+      const proceed = window.confirm(
+        `تنبيه: الحد الجديد (${seatLimitInput}) أقل من عدد الموظفين النشطين حالياً في هذا المتجر (${currentCount}). هل ترغب في المتابعة؟ لن يتمكن المتجر من إضافة أو إعادة تفعيل موظفين جدد حتى ينخفض العدد دون الحد.`
+      );
+      if (!proceed) return;
+    }
+
+    setUpdatingSeats(true);
+    setActionErrorMessage(null);
+    try {
+      await TailorService.adminUpdateShopSeatLimit(seatModalShop.shopId, seatLimitInput);
+      setActionSuccessMessage(`تم تحديث الحد الأقصى للمقاعد لمتجر "${seatModalShop.name || seatModalShop.shopName}" إلى ${seatLimitInput} بنجاح!`);
+      setSeatModalShop(null);
+      await loadPlatformData();
+    } catch (err: any) {
+      setActionErrorMessage(err.message || 'فشل تحديث حد المقاعد');
+    } finally {
+      setUpdatingSeats(false);
+    }
+  };
+
+  const handleReconcileShopSeats = async (shop: Shop) => {
+    setReconcilingSeats(true);
+    setActionErrorMessage(null);
+    try {
+      const res = await TailorService.reconcileShopEmployeeCount(shop.shopId);
+      setActionSuccessMessage(`تمت مطابقة مقاعد متجر "${shop.name || shop.shopName}": الموظفون النشطون (${res.actualActiveCount}) من (${res.maxEmployees}).`);
+      await loadPlatformData();
+      if (seatModalShop && seatModalShop.shopId === shop.shopId) {
+        setSeatModalShop((prev) =>
+          prev ? { ...prev, employeeCount: res.actualActiveCount, maxEmployees: res.maxEmployees } : null
+        );
+      }
+    } catch (err: any) {
+      setActionErrorMessage(err.message || 'فشل مطابقة المقاعد');
+    } finally {
+      setReconcilingSeats(false);
     }
   };
 
@@ -728,6 +789,18 @@ export const PlatformAdminDashboard: React.FC = () => {
                             <span dir="ltr" className="text-slate-300 font-mono text-[11px]">{shop.phone}</span>
                           </div>
                         )}
+                        <div className="flex items-center justify-between text-slate-400 pt-1 border-t border-slate-900/60">
+                          <span>الخطة:</span>
+                          <span className="text-blue-300 font-bold text-[10px] px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800/50">
+                            {shop.subscriptionPlan || 'STARTER'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>المقاعد النشطة:</span>
+                          <span className="font-mono text-white font-black text-xs">
+                            {shop.employeeCount ?? 0} / {shop.maxEmployees ?? DEFAULT_MAX_EMPLOYEES}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -752,6 +825,16 @@ export const PlatformAdminDashboard: React.FC = () => {
                             <span>إعادة تفعيل</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenSeatModal(shop)}
+                        disabled={isProcessing}
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-blue-200 rounded-xl border border-slate-700 transition-all text-xs font-bold flex items-center gap-1"
+                        title="إدارة وتعديل الحد الأقصى للمقاعد ومطابقة عداد الموظفين"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>المقاعد</span>
                       </button>
 
                       <button
@@ -912,6 +995,47 @@ export const PlatformAdminDashboard: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Section 3: Subscription & Seat Limits */}
+              <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <div className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>الاشتراك ومقاعد الموظفين (Subscription & Staff Seat Limits)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">خطة الاشتراك</label>
+                    <select
+                      value={manualSubscriptionPlan}
+                      onChange={(e) => setManualSubscriptionPlan(e.target.value as any)}
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-400"
+                    >
+                      <option value="STARTER">STARTER (الباقة الأساسية)</option>
+                      <option value="PRO">PRO (الباقة المتقدمة)</option>
+                      <option value="ENTERPRISE">ENTERPRISE (باقة الشركات)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                      الحد الأقصى للموظفين (Seat Limit) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="200"
+                      value={manualMaxEmployees}
+                      onChange={(e) => setManualMaxEmployees(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  حساب مالك المتجر مستقل ولا يُحتسب ضمن هذا العدد. يتم فرض هذا الحد أوتوماتيكياً عبر معاملات ذرية وقواعد الأمان.
+                </p>
               </div>
 
               <button
@@ -1254,6 +1378,166 @@ export const PlatformAdminDashboard: React.FC = () => {
               >
                 {isProcessing ? 'جاري الحفظ...' : 'تأكيد الرفض'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEAT MANAGEMENT MODAL (SUPER ADMIN) */}
+      {seatModalShop && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">إدارة مقاعد الموظفين</h3>
+                  <p className="text-xs text-slate-400">
+                    متجر: <span className="text-blue-300 font-bold">{seatModalShop.name || seatModalShop.shopName}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSeatModalShop(null)}
+                disabled={updatingSeats || reconcilingSeats}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Utilization Card */}
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+              <div className="text-[11px] font-bold text-slate-400">حالة الاشتراك واستخدام المقاعد الحالية:</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400">المستخدمة</div>
+                  <div className="text-lg font-black text-white font-mono mt-0.5">
+                    {seatModalShop.employeeCount ?? 0}
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400">الحد الأقصى</div>
+                  <div className="text-lg font-black text-blue-400 font-mono mt-0.5">
+                    {seatModalShop.maxEmployees ?? DEFAULT_MAX_EMPLOYEES}
+                  </div>
+                </div>
+                <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400">المقاعد المتاحة</div>
+                  <div className="text-lg font-black text-emerald-400 font-mono mt-0.5">
+                    {Math.max(
+                      0,
+                      (seatModalShop.maxEmployees ?? DEFAULT_MAX_EMPLOYEES) -
+                        (seatModalShop.employeeCount ?? 0)
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span>الخطة الحالية:</span>
+                <span className="text-blue-300 font-bold px-2 py-0.5 rounded bg-blue-950/80 border border-blue-800/40">
+                  {seatModalShop.subscriptionPlan || 'STARTER'}
+                </span>
+              </div>
+            </div>
+
+            {/* Change Limit Form */}
+            <form onSubmit={handleUpdateSeatLimit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  الحد الأقصى الجديد لعدد الموظفين (Seat Limit):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="500"
+                    value={seatLimitInput}
+                    onChange={(e) => setSeatLimitInput(parseInt(e.target.value) || 0)}
+                    className="flex-1 px-3 py-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-blue-400 text-center font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSeatLimitInput((prev) => prev + 1)}
+                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700"
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSeatLimitInput((prev) => prev + 3)}
+                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700"
+                  >
+                    +3
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSeatLimitInput((prev) => prev + 5)}
+                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700"
+                  >
+                    +5
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  تعديل هذا الرقم يؤثر فورياً على قدرة صاحب المتجر على إضافة حسابات جديدة أو إعادة تفعيل المعطلة.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSeatModalShop(null)}
+                  disabled={updatingSeats || reconcilingSeats}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingSeats || reconcilingSeats}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black rounded-xl shadow-lg disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {updatingSeats ? (
+                    <span>جاري الحفظ...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      <span>حفظ الحد الأقصى</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Reconciliation Section */}
+            <div className="pt-3 border-t border-slate-800/80">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>مطابقة العداد الفعلي (Reconcile)</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    يفحص الموظفين النشطين في مجموعة المستخدمين ويحدث العداد الرسمي إذا وجد فارق.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleReconcileShopSeats(seatModalShop)}
+                  disabled={updatingSeats || reconcilingSeats}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 text-xs font-bold rounded-xl border border-slate-700 shrink-0 flex items-center gap-1 disabled:opacity-50"
+                >
+                  {reconcilingSeats ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>مطابقة الآن</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

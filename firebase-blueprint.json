@@ -59,6 +59,10 @@
         "ownerUid": { "type": "string" },
         "ownerEmail": { "type": "string" },
         "ownerName": { "type": "string" },
+        "maxEmployees": { "type": "number", "description": "Maximum number of active employee accounts allowed" },
+        "employeeCount": { "type": "number", "description": "Current number of active employee memberships" },
+        "subscriptionPlan": { "type": "string", "description": "Subscription tier or plan identifier" },
+        "subscriptionStatus": { "type": "string", "description": "Subscription lifecycle status" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },

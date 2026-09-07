@@ -6,6 +6,7 @@ import { CustomerDetailModal } from '../customers/CustomerDetailModal';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
 import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import { Customer, Order } from '../../types';
+import { calculateOrderFinancials } from '../../utils/financialCalculations';
 import {
   Scissors,
   Users,
@@ -74,7 +75,12 @@ export const DashboardView: React.FC = () => {
     ? refunds.reduce((acc, r) => acc + (r.amount || 0), 0)
     : 0;
   const netCollected = Math.max(0, grossCollected - totalRefunds);
-  const remainingUnpaid = Math.max(0, totalRevenue - netCollected);
+  const remainingUnpaid = canPayments || canReports
+    ? validOrders.reduce(
+        (acc, o) => acc + calculateOrderFinancials(o, payments || [], refunds || []).activeRemaining,
+        0
+      )
+    : 0;
 
   // Today / Urgent deliveries
   const todayStr = new Date().toISOString().split('T')[0];

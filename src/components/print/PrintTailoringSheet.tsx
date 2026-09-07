@@ -3,6 +3,7 @@ import { Order, Payment, Refund, PAYMENT_METHOD_MAP } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 import { TailorService } from '../../services/firebaseService';
+import { getUnitLabel } from '../../utils/measurementConversion';
 import { Printer, X, Scissors, Phone, MapPin, Calendar, User, ShieldCheck, Check, ArrowRight, Receipt, CreditCard } from 'lucide-react';
 import {
   CollarRegularIcon,
@@ -246,9 +247,12 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         <div className="mb-4">
           <div className="flex items-center justify-between bg-stone-900 text-white px-3 py-1.5 rounded-t-lg font-bold text-xs">
             <span className="flex items-center gap-1.5">
-              <Scissors className="w-3.5 h-3.5 text-amber-400" /> جدول المقاسات بالسنتمتر (CM)
+              <Scissors className="w-3.5 h-3.5 text-amber-400" /> جدول المقاسات ({getUnitLabel(order.measurementUnit)})
             </span>
-            <span>عدد الثياب: {order.quantity}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-amber-300">وحدة القياس: {getUnitLabel(order.measurementUnit)}</span>
+              <span>عدد الثياب: {order.quantity}</span>
+            </div>
           </div>
 
           <table className="w-full border-collapse border border-stone-300 text-center text-xs">

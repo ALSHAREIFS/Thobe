@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
 import { Order, Payment, Refund, PAYMENT_METHOD_MAP } from '../../types';
+import { calculateOrderFinancials } from '../../utils/financialCalculations';
 import { TailorService } from '../../services/firebaseService';
 import {
   TrendingUp,
@@ -81,6 +82,10 @@ export const ReportsView: React.FC = () => {
   // Per-Order Ledger Mapping (Single source of truth: payments & refunds collections)
   const orderLedgers = useMemo(() => {
     return safeOrders.filter(Boolean).map((ord) => {
+      const fin = calculateOrderFinancials(ord, safePayments, safeRefunds);
+      const isDelivered = ord?.status === 'DELIVERED';
+      const isFullySettled = fin.isCancelled ? fin.unrefundedLiability === 0 : fin.activeRemaining === 0;
+
       const ordPayments = safePayments.filter(
         (p) => p && ord?.orderId && (p.orderId === ord.orderId || (p.orderNumber && p.orderNumber === ord.orderNumber))
       );
@@ -88,30 +93,21 @@ export const ReportsView: React.FC = () => {
         (r) => r && ord?.orderId && (r.orderId === ord.orderId || (r.orderNumber && r.orderNumber === ord.orderNumber))
       );
 
-      const grossPaid = ordPayments.reduce((acc, p) => acc + (Number(p?.amount) || 0), 0);
-      const totalRefunded = ordRefunds.reduce((acc, r) => acc + (Number(r?.amount) || 0), 0);
-      const netPaid = Math.max(0, grossPaid - totalRefunded);
-      const isCancelled = ord?.status === 'CANCELLED';
-      const isDelivered = ord?.status === 'DELIVERED';
-      const totalAmount = Number(ord?.pricing?.totalAmount) || 0;
-
-      const activeRemaining = isCancelled ? 0 : Math.max(0, totalAmount - netPaid);
-      const unrefundedCancelled = isCancelled ? Math.max(0, netPaid) : 0;
-      const isFullySettled = isCancelled ? unrefundedCancelled === 0 : activeRemaining === 0;
-
       return {
         order: ord,
         payments: ordPayments,
         refunds: ordRefunds,
-        grossPaid,
-        totalRefunded,
-        netPaid,
-        activeRemaining,
-        unrefundedCancelled,
-        isCancelled,
+        grossPaid: fin.grossPaid,
+        totalRefunded: fin.grossRefunded,
+        netPaid: fin.netPaid,
+        activeRemaining: fin.activeRemaining,
+        unrefundedCancelled: fin.unrefundedLiability,
+        isCancelled: fin.isCancelled,
         isDelivered,
-        totalAmount,
+        totalAmount: fin.totalAmount,
         isFullySettled,
+        hasFinancialMismatch: fin.hasFinancialMismatch,
+        mismatchReason: fin.mismatchReason,
       };
     });
   }, [safeOrders, safePayments, safeRefunds]);
@@ -208,7 +204,7 @@ export const ReportsView: React.FC = () => {
   const totalGrossPaid = safePayments.reduce((acc, p) => acc + (Number(p?.amount) || 0), 0);
   const totalRefunds = safeRefunds.reduce((acc, r) => acc + (Number(r?.amount) || 0), 0);
   const totalNetPaid = Math.max(0, totalGrossPaid - totalRefunds);
-  const totalRemaining = Math.max(0, totalRevenue - (totalGrossPaid - totalRefunds - netUnlinked));
+  const totalRemaining = orderLedgers.reduce((acc, l) => acc + l.activeRemaining, 0);
   const totalGarments = validOrders.reduce((acc, o) => acc + (Number(o?.quantity) || 1), 0);
 
   // Unrefunded balance on cancelled orders
@@ -675,6 +671,16 @@ export const ReportsView: React.FC = () => {
                                 ⏳ متبقي {l.activeRemaining} ر.س
                               </span>
                             )
+                          )}
+                          {l.hasFinancialMismatch && (
+                            <div className="mt-1">
+                              <span
+                                className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-bold inline-block"
+                                title={l.mismatchReason}
+                              >
+                                ⚠️ يحتاج تدقيق مالي
+                              </span>
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-3 text-center">

@@ -3,6 +3,7 @@ import { Order, OrderStatus } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
+import { calculateOrderFinancials } from '../../utils/financialCalculations';
 import { OrderDetailModal } from './OrderDetailModal';
 import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import {
@@ -45,23 +46,6 @@ export const OrderListView: React.FC = () => {
   const [orderToCancelWithWarning, setOrderToCancelWithWarning] = useState<Order | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [whatsAppOrder, setWhatsAppOrder] = useState<Order | null>(null);
-
-  // Source of Truth Maps for per-order financials
-  const paymentsByOrder = React.useMemo(() => {
-    const map = new Map<string, number>();
-    (payments || []).forEach((p) => {
-      if (p.orderId) map.set(p.orderId, (map.get(p.orderId) || 0) + (p.amount || 0));
-    });
-    return map;
-  }, [payments]);
-
-  const refundsByOrder = React.useMemo(() => {
-    const map = new Map<string, number>();
-    (refunds || []).forEach((r) => {
-      if (r.orderId) map.set(r.orderId, (map.get(r.orderId) || 0) + (r.amount || 0));
-    });
-    return map;
-  }, [refunds]);
 
   const handleConfirmDeleteOrder = async () => {
     if (!orderToDelete || isDeletingOrder) return;
@@ -191,14 +175,10 @@ export const OrderListView: React.FC = () => {
             bg: '#eee',
           };
 
-          // Calculate SOT Financials for this specific order
-          const orderGrossPaid = paymentsByOrder.has(order.orderId)
-            ? (paymentsByOrder.get(order.orderId) || 0)
-            : (order.pricing?.paidAmount || 0);
-          const orderRefunded = refundsByOrder.get(order.orderId) || 0;
-          const orderNetPaid = Math.max(0, orderGrossPaid - orderRefunded);
-          const orderTotal = order.pricing?.totalAmount || 0;
-          const orderRemaining = Math.max(0, orderTotal - orderNetPaid);
+          // Calculate Canonical Financials for this specific order
+          const fin = calculateOrderFinancials(order, payments || [], refunds || []);
+          const orderTotal = fin.totalAmount;
+          const orderRemaining = fin.activeRemaining;
 
           return (
             <div
@@ -257,12 +237,28 @@ export const OrderListView: React.FC = () => {
                 <div className="text-right">
                   <div className="text-sm font-black text-stone-900">{orderTotal} ر.س</div>
                   <div className="text-[11px] text-stone-400">
-                    {orderRemaining > 0 ? (
+                    {fin.isCancelled ? (
+                      fin.unrefundedLiability > 0 ? (
+                        <span className="text-rose-700 font-bold">بانتظار استرداد: {fin.unrefundedLiability} ر.س</span>
+                      ) : (
+                        <span className="text-stone-400 font-semibold">ملغي (لا يوجد رصيد)</span>
+                      )
+                    ) : orderRemaining > 0 ? (
                       <span className="text-amber-800 font-bold">متبقي: {orderRemaining} ر.س</span>
                     ) : (
                       <span className="text-emerald-700 font-bold">مدفوع بالكامل ✓</span>
                     )}
                   </div>
+                  {fin.hasFinancialMismatch && (
+                    <div className="mt-0.5">
+                      <span
+                        className="inline-block text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-bold"
+                        title={fin.mismatchReason}
+                      >
+                        ⚠️ يحتاج مراجعة مالية
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -416,12 +412,11 @@ export const OrderListView: React.FC = () => {
 
             <div className="p-6 space-y-4">
               {(() => {
-                const cancelPaid = paymentsByOrder.has(orderToCancelWithWarning.orderId)
-                  ? (paymentsByOrder.get(orderToCancelWithWarning.orderId) || 0)
-                  : (orderToCancelWithWarning.pricing?.paidAmount || 0);
+                const fin = calculateOrderFinancials(orderToCancelWithWarning, payments || [], refunds || []);
+                const cancelPaid = fin.grossPaid;
                 return (
                   <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold">
-                    هذا الطلب يحتوي على مبلغ مدفوع قدره <b className="font-black text-amber-900 text-sm">{cancelPaid} ر.س</b>. إلغاء الطلب لن يحذف دفعات العميل المسجلة. يمكنك إرجاع المبلغ للعميل بشكل منفصل.
+                    هذا الطلب يحتوي على دفعات فعلية مسجلة بالسجل بقيمة <b className="font-black text-amber-900 text-sm">{cancelPaid} ر.س</b>. إلغاء الطلب لن يحذف دفعات العميل المسجلة. يمكنك إرجاع المبلغ للعميل عبر سند استرداد.
                   </div>
                 );
               })()}
@@ -462,9 +457,10 @@ export const OrderListView: React.FC = () => {
 
       {/* Delete Order Confirmation or Blocked Modal */}
       {orderToDelete && (() => {
-        const deletePaid = paymentsByOrder.has(orderToDelete.orderId)
-          ? (paymentsByOrder.get(orderToDelete.orderId) || 0)
-          : (orderToDelete.pricing?.paidAmount || 0);
+        const fin = calculateOrderFinancials(orderToDelete, payments || [], refunds || []);
+        const hasLegacyPaid = (orderToDelete.pricing?.paidAmount || 0) > 0;
+        const deleteBlocked = fin.grossPaid > 0 || hasLegacyPaid;
+        const displayPaid = fin.grossPaid > 0 ? fin.grossPaid : (orderToDelete.pricing?.paidAmount || 0);
 
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -472,7 +468,7 @@ export const OrderListView: React.FC = () => {
               <div className="p-5 bg-rose-900 text-white flex items-center justify-between">
                 <h3 className="font-black text-base flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-rose-300" />
-                  {deletePaid > 0 ? 'تعذر الحذف النهائي للطلب' : 'تأكيد حذف أمر التفصيل'}
+                  {deleteBlocked ? 'تعذر الحذف النهائي للطلب' : 'تأكيد حذف أمر التفصيل'}
                 </h3>
                 <button
                   disabled={isDeletingOrder}
@@ -484,7 +480,7 @@ export const OrderListView: React.FC = () => {
               </div>
 
               <div className="p-6 space-y-4">
-                {deletePaid > 0 ? (
+                {deleteBlocked ? (
                   <>
                     <p className="text-sm font-bold text-stone-900">
                       لا يمكن حذف الطلب رقم <span className="text-rose-700 font-mono">({orderToDelete.orderNumber})</span> نهائياً.
@@ -492,7 +488,7 @@ export const OrderListView: React.FC = () => {
 
                     <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-2">
                       <p className="font-bold">
-                        يحتوي هذا الطلب على دفعات مسجلة بقيمة <span className="font-black text-rose-950">{deletePaid} ر.س</span>.
+                        يحتوي هذا الطلب على سجلات مالية مسجلة بقيمة <span className="font-black text-rose-950">{displayPaid} ر.س</span>.
                       </p>
                       <p className="text-rose-700 text-[11px] leading-relaxed">
                         حذف هذا الطلب سيتسبب في وجود دفعات غير مرتبطة بطلب وتشويه سجلات المتجر. يرجى إلغاء الطلب بدلاً من حذفه.

@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { MeasurementData } from '../../types';
+import { MeasurementData, MeasurementUnit } from '../../types';
 import { MEASUREMENT_FIELDS_CONFIG } from '../../utils/presets';
+import { getFieldLimitsForUnit } from '../../utils/measurementConversion';
 import { ThobeMeasurementFigure } from '../visuals/ThobeMeasurementFigure';
 import { Ruler, Sparkles, Plus, Minus } from 'lucide-react';
 
 interface MeasurementFormProps {
   measurements: MeasurementData;
   onChange: (updated: MeasurementData) => void;
-  unit?: 'cm' | 'inch';
-  onUnitChange?: (unit: 'cm' | 'inch') => void;
+  unit?: MeasurementUnit;
+  onUnitChange?: (unit: MeasurementUnit) => void;
   notes?: string;
   onNotesChange?: (notes: string) => void;
 }
@@ -39,15 +40,21 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
   // Quick Preset sizes (52 to 62)
   const applySizePreset = (sizeNum: number) => {
     // Standard Saudi thobe size mappings based on standard height in inches
-    const lengthCm = Math.round(sizeNum * 2.54);
+    const lengthVal = unit === 'inch' ? sizeNum : Math.round(sizeNum * 2.54);
+    const shoulderVal = unit === 'inch' ? (sizeNum >= 58 ? 18.9 : sizeNum >= 56 ? 18.1 : 17.3) : (sizeNum >= 58 ? 48 : sizeNum >= 56 ? 46 : 44);
+    const chestVal = unit === 'inch' ? (sizeNum >= 58 ? 26 : sizeNum >= 56 ? 24.4 : 22.8) : (sizeNum >= 58 ? 66 : sizeNum >= 56 ? 62 : 58);
+    const waistVal = unit === 'inch' ? (sizeNum >= 58 ? 25.2 : sizeNum >= 56 ? 23.6 : 22) : (sizeNum >= 58 ? 64 : sizeNum >= 56 ? 60 : 56);
+    const sleeveVal = unit === 'inch' ? Math.round((lengthVal * 0.42) * 10) / 10 : Math.round(lengthVal * 0.42);
+    const neckVal = unit === 'inch' ? (sizeNum >= 58 ? 16.5 : 15.7) : (sizeNum >= 58 ? 42 : 40);
+
     onChange({
       ...measurements,
-      length: lengthCm,
-      shoulder: sizeNum >= 58 ? 48 : sizeNum >= 56 ? 46 : 44,
-      chest: sizeNum >= 58 ? 66 : sizeNum >= 56 ? 62 : 58,
-      waist: sizeNum >= 58 ? 64 : sizeNum >= 56 ? 60 : 56,
-      sleeveLength: Math.round(lengthCm * 0.42),
-      neck: sizeNum >= 58 ? 42 : 40,
+      length: lengthVal,
+      shoulder: shoulderVal,
+      chest: chestVal,
+      waist: waistVal,
+      sleeveLength: sleeveVal,
+      neck: neckVal,
     });
   };
 
@@ -170,6 +177,7 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
               const currentVal = measurements[field.key];
               const hasValue = currentVal !== undefined && currentVal !== null && currentVal > 0;
               const isSelected = selectedField === field.key;
+              const limits = getFieldLimitsForUnit(field.min, field.max, field.step, field.defaultVal, unit);
 
               return (
                 <div
@@ -206,8 +214,8 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        const baseVal = (measurements[field.key] || field.defaultVal);
-                        handleValueChange(field.key, Math.max(0, baseVal - field.step));
+                        const baseVal = (measurements[field.key] || limits.defaultVal);
+                        handleValueChange(field.key, Math.max(0, baseVal - limits.step));
                       }}
                       className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold active:scale-95 transition-all cursor-pointer"
                     >
@@ -216,9 +224,9 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
 
                     <input
                       type="number"
-                      step={field.step}
-                      min={field.min}
-                      max={field.max}
+                      step={limits.step}
+                      min={limits.min}
+                      max={limits.max}
                       value={hasValue ? currentVal : ''}
                       placeholder={`--`}
                       onClick={(e) => e.stopPropagation()}
@@ -234,8 +242,8 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        const baseVal = (measurements[field.key] || field.defaultVal - field.step);
-                        handleValueChange(field.key, baseVal + field.step);
+                        const baseVal = (measurements[field.key] || limits.defaultVal - limits.step);
+                        handleValueChange(field.key, baseVal + limits.step);
                       }}
                       className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold active:scale-95 transition-all cursor-pointer"
                     >

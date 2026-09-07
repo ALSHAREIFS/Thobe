@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 import { TailorService } from '../../services/firebaseService';
-import { UserProfile, EmployeePermissions, DEFAULT_EMPLOYEE_PERMISSIONS } from '../../types';
+import { UserProfile, EmployeePermissions, DEFAULT_EMPLOYEE_PERMISSIONS, DEFAULT_MAX_EMPLOYEES } from '../../types';
 import {
   Settings as SettingsIcon,
   Store,
@@ -40,6 +40,14 @@ export const SettingsView: React.FC = () => {
     toggleEmployeeStatus,
     deleteEmployee,
   } = useShop();
+
+  // Employee Seat Limit State
+  const maxEmployees = typeof currentShop?.maxEmployees === 'number' ? currentShop.maxEmployees : DEFAULT_MAX_EMPLOYEES;
+  const activeEmployeeCount = typeof currentShop?.employeeCount === 'number'
+    ? currentShop.employeeCount
+    : employees.filter((e) => e.role === 'EMPLOYEE' && e.isActive !== false).length;
+  const isAtLimit = activeEmployeeCount >= maxEmployees;
+  const remainingSeats = Math.max(0, maxEmployees - activeEmployeeCount);
 
   // Shop Settings Form State
   const [shopName, setShopName] = useState(currentShop?.name || currentShop?.shopName || '');
@@ -122,6 +130,11 @@ export const SettingsView: React.FC = () => {
     if (!currentShop?.shopId || !canManage) return;
     setEmpError(null);
 
+    if (isAtLimit) {
+      setEmpError(`لا يمكن إضافة موظف جديد: لقد وصلت إلى الحد الأقصى للمقاعد (${activeEmployeeCount} من ${maxEmployees}).`);
+      return;
+    }
+
     if (empPassword.length < 6) {
       setEmpError('كلمة مرور الموظف يجب أن تكون 6 أحرف أو أرقام على الأقل');
       return;
@@ -192,6 +205,13 @@ export const SettingsView: React.FC = () => {
     }
 
     const nextStatus = emp.isActive === false; // If false -> true, If true/undefined -> false
+    if (nextStatus && isAtLimit) {
+      showToast(
+        `لا يمكن إعادة تفعيل حساب الموظف: لقد وصلت إلى الحد الأقصى للمقاعد المتاحة (${activeEmployeeCount} من ${maxEmployees}). يرجى ترقية الخطة أو تعطيل حساب آخر أولاً.`,
+        'error'
+      );
+      return;
+    }
     setEmpToToggle({ emp, nextStatus });
   };
 
@@ -381,21 +401,87 @@ export const SettingsView: React.FC = () => {
           <div>
             <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
               <Users className="w-4 h-4 text-[#1A365D]" />
-              إدارة موظفي المتجر وصلاحياتهم (Shop Employees & Permissions)
+              إدارة موظفي المتجر والمقاعد (Staff Seats & Permissions)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               إضافة حسابات الموظفين وتخصيص الصلاحيات الخمس المستقلة (العملاء، المقاسات، الطلبات، المدفوعات، التقارير)
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAddEmpModal(true)}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1A365D] hover:bg-[#152C4D] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>إضافة موظف جديد</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isAtLimit}
+              onClick={() => {
+                if (isAtLimit) {
+                  showToast(`تم الوصول للحد الأقصى لحسابات الموظفين (${maxEmployees} موظف).`, 'error');
+                  return;
+                }
+                setShowAddEmpModal(true);
+              }}
+              title={isAtLimit ? `تم بلوغ الحد الأقصى لحسابات الموظفين المسموح بها (${maxEmployees} موظفين)` : 'إضافة موظف جديد'}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer ${
+                isAtLimit
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                  : 'bg-[#1A365D] hover:bg-[#152C4D] text-white'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>إضافة موظف جديد</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Seat Limit Card & Utilization Meter */}
+        <div className={`p-4 rounded-2xl border transition-all ${
+          isAtLimit
+            ? 'bg-amber-50/80 border-amber-300'
+            : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
+                isAtLimit ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-blue-50 text-[#1A365D] border border-blue-200'
+              }`}>
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-slate-900 flex items-center gap-2">
+                  <span>المقاعد المستخدمة:</span>
+                  <span className="font-mono text-sm font-black text-[#1A365D]">
+                    {activeEmployeeCount} من {maxEmployees}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    isAtLimit
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  }`}>
+                    {isAtLimit ? 'مكتمل (الحد الأقصى)' : `متبقي ${remainingSeats} مقعد`}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  حساب مالك المتجر مستقل ولا يُحتسب ضمن مقاعد الموظفين. تعطيل الموظف يحرر مقعده فوراً.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Seat Bar */}
+          <div className="w-full bg-slate-200 h-2 rounded-full mt-3 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                isAtLimit ? 'bg-amber-500' : 'bg-[#1A365D]'
+              }`}
+              style={{ width: `${Math.min(100, (activeEmployeeCount / Math.max(1, maxEmployees)) * 100)}%` }}
+            />
+          </div>
+
+          {isAtLimit && (
+            <div className="mt-2 text-[11px] text-amber-800 font-bold flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+              <span>لقد وصلت إلى الحد الأقصى لحسابات الموظفين في باقتك ({maxEmployees} من {maxEmployees}). لزيادة المقاعد يرجى التواصل مع إدارة المنصة.</span>
+            </div>
+          )}
         </div>
 
         {/* Employee List */}
@@ -1005,11 +1091,11 @@ export const SettingsView: React.FC = () => {
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 leading-relaxed font-medium">
                 {empToToggle.nextStatus ? (
                   <span>
-                    عند التفعيل، سيتمكن الموظف من تسجيل الدخول والوصول إلى بيانات المتجر وفق الصلاحيات المحددة له.
+                    عند التفعيل، سيتم استهلاك مقعد واحد من مقاعد الموظفين المتاحة ({activeEmployeeCount + 1} من {maxEmployees})، ويتمكن الموظف من تسجيل الدخول والوصول للمتجر.
                   </span>
                 ) : (
                   <span>
-                    عند التعطيل، سيتم إيقاف وصول الموظف فوراً ومنعه من استعراض أو تعديل بيانات المتجر حتى إعادة تفعيله.
+                    عند التعطيل، سيتم إيقاف وصول الموظف فوراً وتحرير مقعده ({Math.max(0, activeEmployeeCount - 1)} من {maxEmployees})، مما يتيح لك استخدامه لإضافة أو تفعيل موظف آخر.
                   </span>
                 )}
               </div>

@@ -13,6 +13,7 @@ import {
 import { MeasurementForm } from '../measurements/MeasurementForm';
 import { VisualOptionSelector } from '../visuals/VisualOptionSelector';
 import { FabricSelector } from './FabricSelector';
+import { getUnitLabel, convertMeasurementData } from '../../utils/measurementConversion';
 import { TailorService } from '../../services/firebaseService';
 import {
   User,
@@ -153,6 +154,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   useEffect(() => {
     if (initialEditingOrder) {
       setMeasurements(initialEditingOrder.measurements || EMPTY_MEASUREMENTS);
+      setMeasurementUnit(initialEditingOrder.measurementUnit || 'cm');
       setTailoringDetails(initialEditingOrder.tailoringDetails || DEFAULT_TAILORING_DETAILS);
       if (initialEditingOrder.pricing) {
         setUnitPrice(initialEditingOrder.pricing.unitPrice || 0);
@@ -171,6 +173,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       setStep(2);
     } else if (initialTemplateOrder) {
       setMeasurements(initialTemplateOrder.measurements || EMPTY_MEASUREMENTS);
+      setMeasurementUnit(initialTemplateOrder.measurementUnit || 'cm');
       setTailoringDetails(initialTemplateOrder.tailoringDetails || EMPTY_TAILORING_DETAILS);
       if (initialTemplateOrder.pricing) {
         setUnitPrice(initialTemplateOrder.pricing.unitPrice || 0);
@@ -197,11 +200,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       const lastOrder = await TailorService.getLatestOrderForCustomer(shopId, cust.customerId);
       if (lastOrder && lastOrder.measurements && lastOrder.measurements.length > 0) {
         setMeasurements(lastOrder.measurements);
+        setMeasurementUnit(lastOrder.measurementUnit || 'cm');
         setTailoringDetails(lastOrder.tailoringDetails || EMPTY_TAILORING_DETAILS);
       } else {
         const historyMeas = await TailorService.getCustomerMeasurements(shopId, cust.customerId);
         if (historyMeas.length > 0 && historyMeas[0].measurements && historyMeas[0].measurements.length > 0) {
           setMeasurements(historyMeas[0].measurements);
+          setMeasurementUnit(historyMeas[0].unit || 'cm');
           setTailoringDetails(EMPTY_TAILORING_DETAILS);
         } else {
           setMeasurements(EMPTY_MEASUREMENTS);
@@ -277,10 +282,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     }
 
     // Validate essential measurements before submitting
-    const measValidation = validateMeasurements(measurements);
+    const measValidation = validateMeasurements(measurements, measurementUnit);
     if (!measValidation.isValid) {
+      const errorMsg = [
+        measValidation.missingFields.length > 0 ? `المقاسات الأساسية المفقودة: ${measValidation.missingFields.join('، ')}` : '',
+        measValidation.invalidFields && measValidation.invalidFields.length > 0 ? `قيم غير منطقية: ${measValidation.invalidFields.join('، ')}` : '',
+      ].filter(Boolean).join(' | ');
       showToast(
-        `لا يمكن اعتماد الطلب بدون استكمال المقاسات الأساسية: ${measValidation.missingFields.join('، ')}`,
+        `لا يمكن اعتماد الطلب: ${errorMsg}`,
         'error'
       );
       setStep(2);
@@ -339,6 +348,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           garmentType: tailoringDetails.garmentType,
           quantity,
           measurements,
+          measurementUnit,
           tailoringDetails,
           pricing: {
             ...initialEditingOrder.pricing,
@@ -367,6 +377,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           garmentType: tailoringDetails.garmentType,
           quantity,
           measurements,
+          measurementUnit,
           tailoringDetails,
           pricing: {
             unitPrice,
@@ -457,9 +468,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                       return;
                     }
                     if (step === 2) {
-                      const check = validateMeasurements(measurements);
+                      const check = validateMeasurements(measurements, measurementUnit);
                       if (!check.isValid) {
-                        showToast(`يرجى استكمال المقاسات الأساسية: ${check.missingFields.join('، ')}`, 'error');
+                        const errorMsg = [
+                          check.missingFields.length > 0 ? `المقاسات الأساسية: ${check.missingFields.join('، ')}` : '',
+                          check.invalidFields && check.invalidFields.length > 0 ? `قيم غير صحيحة: ${check.invalidFields.join('، ')}` : '',
+                        ].filter(Boolean).join(' | ');
+                        showToast(`يرجى استكمال وتصحيح المقاسات: ${errorMsg}`, 'error');
                         return;
                       }
                     }
@@ -536,9 +551,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                       return;
                     }
                     if (s.num > 2) {
-                      const check = validateMeasurements(measurements);
+                      const check = validateMeasurements(measurements, measurementUnit);
                       if (!check.isValid) {
-                        showToast(`يرجى إكمال المقاسات الأساسية: ${check.missingFields.join('، ')}`, 'error');
+                        const errorMsg = [
+                          check.missingFields.length > 0 ? `المقاسات الأساسية: ${check.missingFields.join('، ')}` : '',
+                          check.invalidFields && check.invalidFields.length > 0 ? `قيم غير صحيحة: ${check.invalidFields.join('، ')}` : '',
+                        ].filter(Boolean).join(' | ');
+                        showToast(`يرجى إكمال وتصحيح المقاسات: ${errorMsg}`, 'error');
                         return;
                       }
                     }
@@ -1025,31 +1044,38 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
             {/* Measurements Grid */}
             <div>
-              <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2.5">جدول المقاسات (سم)</h4>
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                  جدول المقاسات ({getUnitLabel(measurementUnit)})
+                </h4>
+                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  الوحدة: {getUnitLabel(measurementUnit)}
+                </span>
+              </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الطول الكامل</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.length} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.length} {getUnitLabel(measurementUnit)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الكتف</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.shoulder} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.shoulder} {getUnitLabel(measurementUnit)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الصدر</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.chest} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.chest} {getUnitLabel(measurementUnit)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">طول الكم</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.sleeveLength} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.sleeveLength} {getUnitLabel(measurementUnit)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الرقبة</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.neck} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.neck} {getUnitLabel(measurementUnit)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الكبك / المعصم</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.wrist} سم</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.wrist} {getUnitLabel(measurementUnit)}</div>
                 </div>
               </div>
             </div>

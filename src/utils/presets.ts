@@ -21,18 +21,36 @@ export const EMPTY_MEASUREMENTS: MeasurementData = {
 };
 
 export const validateMeasurements = (
-  measurements: MeasurementData
-): { isValid: boolean; missingFields: string[] } => {
+  measurements: MeasurementData,
+  unit: 'cm' | 'inch' = 'cm'
+): { isValid: boolean; missingFields: string[]; invalidFields?: string[] } => {
   const missing: string[] = [];
+  const invalid: string[] = [];
+
+  // Essential required fields
   if (!measurements || !measurements.length || measurements.length <= 0) missing.push('طول الثوب');
   if (!measurements || !measurements.shoulder || measurements.shoulder <= 0) missing.push('عرض الكتف');
   if (!measurements || !measurements.chest || measurements.chest <= 0) missing.push('وسع الصدر');
   if (!measurements || !measurements.sleeveLength || measurements.sleeveLength <= 0) missing.push('طول الكم');
   if (!measurements || !measurements.neck || measurements.neck <= 0) missing.push('محيط الرقبة (الياقة)');
 
+  // Range validation for entered fields based on unit
+  for (const field of MEASUREMENT_FIELDS_CONFIG) {
+    const val = measurements ? measurements[field.key] : undefined;
+    if (typeof val === 'number' && val > 0) {
+      const min = unit === 'inch' ? Math.round((field.min / 2.54) * 10) / 10 : field.min;
+      const max = unit === 'inch' ? Math.round((field.max / 2.54) * 10) / 10 : field.max;
+      // Allow a small 10% tolerance beyond absolute min/max for exceptional human bodies
+      if (val < min * 0.8 || val > max * 1.3) {
+        invalid.push(`${field.label} (${val} ${unit === 'inch' ? 'إنش' : 'سم'}) غير منطقي`);
+      }
+    }
+  }
+
   return {
-    isValid: missing.length === 0,
+    isValid: missing.length === 0 && invalid.length === 0,
     missingFields: missing,
+    invalidFields: invalid,
   };
 };
 

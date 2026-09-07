@@ -74,7 +74,7 @@ interface ShopContextType {
 export const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentShop, currentUser, isSuperAdmin, isShop } = useAuth();
+  const { currentShop, currentUser, isSuperAdmin, isShop, refreshProfile } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -364,6 +364,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser?.userId || ''
       );
       setEmployees((prev) => [created, ...prev.filter((e) => e.userId !== created.userId)]);
+      refreshProfile().catch(() => {});
       showToast(`تم إنشاء حساب الموظف (${created.fullName}) بنجاح`, 'success');
       return created;
     } catch (err: any) {
@@ -399,8 +400,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setEmployees((prev) =>
         prev.map((e) => (e.userId === userId ? { ...e, isActive } : e))
       );
+      refreshProfile().catch(() => {});
       showToast(
-        isActive ? 'تم تفعيل حساب الموظف بنجاح' : 'تم تعطيل حساب الموظف بنجاح',
+        isActive ? 'تم تفعيل حساب الموظف بنجاح' : 'تم تعطيل حساب الموظف بنجاح (تم تحرير مقعد)',
         'info'
       );
     } catch (err: any) {
@@ -414,6 +416,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await TailorService.deleteEmployeeDoc(currentShop.shopId, userId);
       setEmployees((prev) => prev.filter((e) => e.userId !== userId));
+      refreshProfile().catch(() => {});
       showToast('تم إزالة وصول الموظف من المتجر بنجاح', 'info');
     } catch (err: any) {
       showToast(err.message || 'فشل إزالة الموظف', 'error');

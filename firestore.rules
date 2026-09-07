@@ -147,66 +147,52 @@ service cloud.firestore {
       );
 
       // Create:
-      // 1. Super Admin (e.g. creating SHOP during onboarding)
-      // 2. SHOP creating an EMPLOYEE profile inside their own shop
-      // 3. Designated shop owner self-initializing their profile
-      // 4. Self-registration placeholder with no elevated role or shop assignment
+      // 1. Super Admin: full authorized profiles
+      // 2. SHOP creating an EMPLOYEE profile inside their own shop (strictly coupled with shop member doc)
+      // 3. Designated shop owner self-initializing their profile (strictly constrained to SHOP role, matching shop ownerUid)
       allow create: if isSuperAdmin() || (
         isAuthenticated() && (
-          // SHOP account creating staff in their OWN shop
+          // Path 1: SHOP account creating staff in their OWN shop (strictly EMPLOYEE)
           (
             request.resource.data.shopId != null &&
             isShopAccount(request.resource.data.shopId) &&
             request.resource.data.role == 'EMPLOYEE' &&
-            request.resource.data.createdBy == request.auth.uid
+            request.resource.data.createdBy == request.auth.uid &&
+            request.auth.uid != userId &&
+            existsAfter(/databases/$(database)/documents/shops/$(request.resource.data.shopId)/users/$(userId))
           ) ||
-          // Designated owner initializing their profile
+          // Path 2: Designated owner initializing their profile (strictly SHOP, must own the shop)
           (
             request.auth.uid == userId &&
             request.resource.data.shopId != null &&
             exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)) &&
             get(/databases/$(database)/documents/shops/$(request.resource.data.shopId)).data.ownerUid == request.auth.uid &&
             request.resource.data.role == 'SHOP'
-          ) ||
-          // Public signup placeholder (no role, no shopId, inactive)
-          (
-            request.auth.uid == userId &&
-            (!('role' in request.resource.data) || request.resource.data.role == null || request.resource.data.role == 'USER') &&
-            (!('shopId' in request.resource.data) || request.resource.data.shopId == null) &&
-            (!('isActive' in request.resource.data) || request.resource.data.isActive == false)
           )
         )
       );
 
       // Update:
       // 1. Super Admin: full access
-      // 2. SHOP account: managing employees in their own shop (cannot change shopId or createdBy)
-      // 3. Designated owner self-updating profile with SHOP role
-      // 4. User self-update: only basic personal info
+      // 2. SHOP account: managing employees in their own shop (cannot change role, shopId, or createdBy)
+      // 3. User self-update: only basic personal contact info, strictly prohibited from altering privileged fields
       allow update: if isSuperAdmin() || (
         isAuthenticated() && (
-          // SHOP owner updating staff in their shop
+          // SHOP owner updating staff in their shop (strictly maintains EMPLOYEE role)
           (
             resource.data.shopId != null &&
             isShopAccount(resource.data.shopId) &&
+            resource.data.role == 'EMPLOYEE' &&
             request.resource.data.shopId == resource.data.shopId &&
             request.resource.data.role == 'EMPLOYEE' &&
             request.resource.data.createdBy == resource.data.createdBy &&
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'shopId', 'email', 'createdBy'])
           ) ||
-          // Designated owner self-updating profile to SHOP
-          (
-            request.auth.uid == userId &&
-            resource.data.shopId != null &&
-            exists(/databases/$(database)/documents/shops/$(resource.data.shopId)) &&
-            get(/databases/$(database)/documents/shops/$(resource.data.shopId)).data.ownerUid == request.auth.uid &&
-            request.resource.data.role == 'SHOP'
-          ) ||
-          // Self update: cannot escalate privileges, change shop, permissions, or activation
+          // Self update: only personal non-privileged fields
           (
             request.auth.uid == userId &&
             !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-              'role', 'shopId', 'permissions', 'isActive', 'email', 'createdBy'
+              'role', 'shopId', 'permissions', 'isActive', 'email', 'createdBy', 'createdAt', 'status'
             ])
           )
         )
@@ -233,10 +219,79 @@ service cloud.firestore {
       // Shop creation / deletion: STRICTLY Super Admin
       allow create, delete: if isSuperAdmin();
 
-      // Shop updates: Super Admin full, SHOP can update profile/settings but cannot change critical identity keys
+      // Shop updates: Super Admin full; SHOP can update profile/settings but CANNOT change protected subscription/identity keys or exceed seat limits
       allow update: if isSuperAdmin() || (
         isShopAccount(shopId) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'ownerUid', 'shopId', 'createdAt'])
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'ownerUid', 'shopId', 'createdAt']) &&
+        // Invariant C & D: SHOP cannot modify maxEmployees
+        (('maxEmployees' in resource.data) && request.resource.data.maxEmployees == resource.data.maxEmployees) &&
+        // Invariant C: SHOP cannot modify subscriptionPlan or subscriptionStatus
+        (
+          (!('subscriptionPlan' in resource.data) && !('subscriptionPlan' in request.resource.data)) ||
+          (('subscriptionPlan' in resource.data) && request.resource.data.subscriptionPlan == resource.data.subscriptionPlan)
+        ) &&
+        (
+          (!('subscriptionStatus' in resource.data) && !('subscriptionStatus' in request.resource.data)) ||
+          (('subscriptionStatus' in resource.data) && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus)
+        ) &&
+        // Strict seat counter rules: either employeeCount & lastSeatAction are untouched, OR they are coupled to an atomic membership transition
+        (
+          // Case 1: General profile update where employeeCount and lastSeatAction are unchanged
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['employeeCount', 'lastSeatAction'])) ||
+          // Case 2: Atomic seat action coupled with corresponding employee document transition
+          // RECONCILIATION REQUIREMENT: resource.data MUST already have both maxEmployees and employeeCount.
+          (
+            ('maxEmployees' in resource.data) &&
+            ('employeeCount' in resource.data) &&
+            request.resource.data.employeeCount is int &&
+            request.resource.data.employeeCount >= 0 &&
+            request.resource.data.employeeCount <= resource.data.maxEmployees &&
+            ('lastSeatAction' in request.resource.data) &&
+            request.resource.data.lastSeatAction.employeeUid is string &&
+            request.resource.data.lastSeatAction.employeeUid.size() > 0 &&
+            (
+              // Subcase 2.1: CREATE employee (+1)
+              (
+                request.resource.data.lastSeatAction.action == 'CREATE' &&
+                request.resource.data.employeeCount == resource.data.employeeCount + 1 &&
+                !exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                getAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.role == 'EMPLOYEE' &&
+                getAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.shopId == shopId &&
+                getAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true
+              ) ||
+              // Subcase 2.2: DEACTIVATE employee (-1)
+              (
+                request.resource.data.lastSeatAction.action == 'DEACTIVATE' &&
+                ('employeeCount' in resource.data) &&
+                request.resource.data.employeeCount == (resource.data.employeeCount > 0 ? resource.data.employeeCount - 1 : 0) &&
+                exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true &&
+                getAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == false
+              ) ||
+              // Subcase 2.3: REACTIVATE employee (+1)
+              (
+                request.resource.data.lastSeatAction.action == 'REACTIVATE' &&
+                ('employeeCount' in resource.data) &&
+                request.resource.data.employeeCount == resource.data.employeeCount + 1 &&
+                exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == false &&
+                getAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true
+              ) ||
+              // Subcase 2.4: DELETE employee (-1)
+              (
+                request.resource.data.lastSeatAction.action == 'DELETE' &&
+                ('employeeCount' in resource.data) &&
+                request.resource.data.employeeCount == (resource.data.employeeCount > 0 ? resource.data.employeeCount - 1 : 0) &&
+                exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
+                get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true &&
+                !existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid))
+              )
+            )
+          )
+        )
       );
 
       // 5.1 Shop Staff Subcollection (/shops/{shopId}/users/{userId})
@@ -248,7 +303,12 @@ service cloud.firestore {
           isShopAccount(shopId) &&
           request.resource.data.role == 'EMPLOYEE' &&
           request.resource.data.shopId == shopId &&
-          request.resource.data.createdBy == request.auth.uid
+          request.resource.data.createdBy == request.auth.uid &&
+          // Coupled atomic increment on shop document
+          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
+          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'CREATE' &&
+          ('employeeCount' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1
         ) || (
           isAuthenticated() &&
           request.auth.uid == userId &&
@@ -264,7 +324,30 @@ service cloud.firestore {
           request.resource.data.shopId == shopId &&
           request.resource.data.role == 'EMPLOYEE' &&
           request.resource.data.createdBy == resource.data.createdBy &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy'])
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['shopId', 'email', 'createdBy', 'role']) &&
+          (
+            // Subcase 1: Status unchanged (updating permissions etc.)
+            (resource.data.isActive == request.resource.data.isActive) ||
+            // Subcase 2: Deactivating (isActive: true -> false) coupled with shop decrement
+            (
+              resource.data.isActive == true &&
+              request.resource.data.isActive == false &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'DEACTIVATE' &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == (
+                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 ?
+                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1 : 0
+              )
+            ) ||
+            // Subcase 3: Reactivating (isActive: false -> true) coupled with shop increment
+            (
+              resource.data.isActive == false &&
+              request.resource.data.isActive == true &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'REACTIVATE' &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1
+            )
+          )
         ) || (
           isAuthenticated() &&
           request.auth.uid == userId &&
@@ -279,7 +362,24 @@ service cloud.firestore {
           ])
         );
         
-        allow delete: if isSuperAdmin() || (isShopAccount(shopId) && request.auth.uid != userId);
+        allow delete: if isSuperAdmin() || (
+          isShopAccount(shopId) &&
+          request.auth.uid != userId &&
+          (
+            // If was already inactive, can delete without modifying employeeCount
+            (resource.data.isActive == false) ||
+            // If was active, MUST be coupled with shop decrement
+            (
+              resource.data.isActive == true &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'DELETE' &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == (
+                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 ?
+                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1 : 0
+              )
+            )
+          )
+        );
       }
 
       // 5.2 Customers Collection (/shops/{shopId}/customers/{customerId})

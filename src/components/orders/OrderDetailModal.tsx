@@ -4,6 +4,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
+import { calculateOrderFinancials } from '../../utils/financialCalculations';
 import {
   X,
   Printer,
@@ -27,6 +28,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
+import { getUnitLabel } from '../../utils/measurementConversion';
 import {
   CollarRegularIcon,
   CollarMandarinIcon,
@@ -63,7 +65,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const [statusNote, setStatusNote] = useState('');
   const [showPaymentInput, setShowPaymentInput] = useState(false);
-  const [payAmount, setPayAmount] = useState<number>(order?.pricing?.remainingAmount || 0);
+  const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'bank_transfer' | 'stc_pay'>('cash');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const isSubmittingPaymentLock = useRef<boolean>(false);
@@ -175,11 +177,29 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
-  // Financial Truth Calculations (Source of Truth: Payments and Refunds collections)
-  const grossPaid = orderPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0);
-  const totalRefunds = orderRefunds.reduce((acc, ref) => acc + (ref.amount || 0), 0);
-  const netPaid = Math.max(0, grossPaid - totalRefunds);
-  const maxRefundable = Math.max(0, grossPaid - totalRefunds);
+  // Centralized Canonical Financial Calculations (Source of Truth: Payments and Refunds collections)
+  const financials = calculateOrderFinancials(order, orderPayments, orderRefunds);
+  const {
+    grossPaid,
+    grossRefunded: totalRefunds,
+    netPaid,
+    remaining,
+    activeRemaining,
+    unrefundedLiability,
+    maxRefundable,
+    isCancelled,
+    hasFinancialMismatch,
+    mismatchReason,
+  } = financials;
+
+  // Synchronize payAmount with calculated active remaining balance
+  useEffect(() => {
+    if (!isCancelled && activeRemaining > 0) {
+      setPayAmount(activeRemaining);
+    } else {
+      setPayAmount(0);
+    }
+  }, [activeRemaining, isCancelled]);
 
   const paymentMethodsSummary = orderPayments.length > 0
     ? Array.from(new Set(orderPayments.map((pay) => PAYMENT_METHOD_MAP[pay.method] || pay.method))).join(' + ')
@@ -212,7 +232,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const handleDeleteClick = () => {
     const paid = order.pricing?.paidAmount || 0;
-    const hasPayments = orderPayments.length > 0;
+    const hasPayments = orderPayments.length > 0 || grossPaid > 0;
     if (paid > 0 || hasPayments) {
       setShowDeleteBlockedModal(true);
     } else {
@@ -236,9 +256,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Prohibit payment on CANCELLED order
+    if (isCancelled) return;
     // Synchronous double-submission lock guard
     if (isSubmittingPaymentLock.current || isSubmittingPayment) return;
-    if (payAmount <= 0 || isNaN(payAmount)) return;
+    if (payAmount <= 0 || isNaN(payAmount) || payAmount > activeRemaining) return;
 
     isSubmittingPaymentLock.current = true;
     setIsSubmittingPayment(true);
@@ -249,7 +271,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         customerId: order.customerId,
         amount: payAmount,
         method: payMethod,
-        type: payAmount >= p.remainingAmount ? 'FULL' : 'REMAINING',
+        type: payAmount >= activeRemaining ? 'FULL' : 'REMAINING',
         notes: 'سداد من شاشة تفاصيل الطلب',
         receivedBy: currentUser?.userId || 'usr_unknown',
         receivedByName: currentUser?.fullName || 'المستخدم',
@@ -496,34 +518,39 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
           {/* Measurements */}
           <div>
-            <h3 className="font-black text-sm text-stone-900 flex items-center gap-2 mb-3">
-              <Scissors className="w-4 h-4 text-amber-700" />
-              المقاسات المسجلة لهذا الطلب (سم)
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-black text-sm text-stone-900 flex items-center gap-2">
+                <Scissors className="w-4 h-4 text-amber-700" />
+                المقاسات المسجلة لهذا الطلب ({getUnitLabel(order?.measurementUnit)})
+              </h3>
+              <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                الوحدة: {getUnitLabel(order?.measurementUnit)}
+              </span>
+            </div>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
               <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200">
                 <span className="text-[10px] text-amber-900 font-bold block">الطول الكامل</span>
-                <span className="font-black text-base text-amber-950">{m.length} سم</span>
+                <span className="font-black text-base text-amber-950">{m.length} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الكتف</span>
-                <span className="font-black text-sm text-stone-900">{m.shoulder}</span>
+                <span className="font-black text-sm text-stone-900">{m.shoulder} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الصدر</span>
-                <span className="font-black text-sm text-stone-900">{m.chest}</span>
+                <span className="font-black text-sm text-stone-900">{m.chest} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">طول الكم</span>
-                <span className="font-black text-sm text-stone-900">{m.sleeveLength}</span>
+                <span className="font-black text-sm text-stone-900">{m.sleeveLength} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الرقبة</span>
-                <span className="font-black text-sm text-stone-900">{m.neck}</span>
+                <span className="font-black text-sm text-stone-900">{m.neck} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الكبك</span>
-                <span className="font-black text-sm text-stone-900">{m.wrist}</span>
+                <span className="font-black text-sm text-stone-900">{m.wrist} {getUnitLabel(order?.measurementUnit)}</span>
               </div>
             </div>
           </div>
@@ -625,7 +652,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <span>سند استرداد ↩</span>
                   </button>
                 )}
-                {p.remainingAmount > 0 && canAccessPayments && (
+                {!isCancelled && activeRemaining > 0 && canAccessPayments && (
                   <button
                     type="button"
                     onClick={() => {
@@ -641,38 +668,92 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             {/* Financial Status Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center">
               <div className="bg-white p-3 rounded-xl border border-stone-200 flex flex-col justify-center">
                 <span className="text-xs text-stone-400 font-semibold block">إجمالي المبلغ</span>
-                <span className="text-lg font-black text-stone-900">{p.totalAmount} ر.س</span>
-                <span className="text-[10px] text-stone-400 mt-0.5">سعر التفصيل والأقمشة</span>
+                <span className="text-base font-black text-stone-900">{financials.totalAmount} ر.س</span>
+                <span className="text-[10px] text-stone-400 mt-0.5">سعر الطلب</span>
               </div>
               
               <div className="bg-white p-3 rounded-xl border border-emerald-200 bg-emerald-50/20 flex flex-col justify-center">
-                <span className="text-xs text-emerald-700 font-semibold block">المقبوض (سندات القبض)</span>
-                <span className="text-lg font-black text-emerald-700">{grossPaid} ر.س</span>
+                <span className="text-xs text-emerald-700 font-semibold block">المقبوض</span>
+                <span className="text-base font-black text-emerald-700">{grossPaid} ر.س</span>
                 <span className="text-[10px] text-emerald-600 mt-0.5">
                   {orderPayments.length} سند قبض
                 </span>
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-rose-200 bg-rose-50/20 flex flex-col justify-center">
-                <span className="text-xs text-rose-700 font-semibold block">المسترد (سندات الاسترداد)</span>
-                <span className="text-lg font-black text-rose-700">{totalRefunds} ر.س</span>
+                <span className="text-xs text-rose-700 font-semibold block">المسترد</span>
+                <span className="text-base font-black text-rose-700">{totalRefunds} ر.س</span>
                 <span className="text-[10px] text-rose-600 mt-0.5">
                   {orderRefunds.length} سند استرداد
                 </span>
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-stone-200 flex flex-col justify-center">
-                <span className="text-xs text-stone-600 font-semibold block">صافي المحصل الفعلي</span>
-                <span className="text-lg font-black text-stone-900">{netPaid} ر.س</span>
+                <span className="text-xs text-stone-600 font-semibold block">صافي المحصل</span>
+                <span className="text-base font-black text-stone-900">{netPaid} ر.س</span>
                 <span className="text-[10px] text-stone-400 mt-0.5">المتاح للاسترداد: {maxRefundable} ر.س</span>
+              </div>
+
+              <div className={`p-3 rounded-xl border flex flex-col justify-center ${
+                isCancelled
+                  ? 'bg-stone-100/80 border-stone-200 text-stone-500'
+                  : activeRemaining > 0
+                  ? 'bg-amber-50/30 border-amber-200 text-amber-800'
+                  : 'bg-emerald-50/30 border-emerald-200 text-emerald-800'
+              }`}>
+                <span className="text-xs font-semibold block">
+                  {isCancelled ? 'حالة الرصيد' : 'المتبقي للتحصيل'}
+                </span>
+                <span className="text-base font-black">
+                  {isCancelled ? '0 ر.س (ملغي)' : `${activeRemaining} ر.س`}
+                </span>
+                <span className="text-[10px] mt-0.5 opacity-80">
+                  {isCancelled ? 'لا يقبل دفعات' : activeRemaining > 0 ? 'متبقي على العميل' : 'مسدد بالكامل ✓'}
+                </span>
               </div>
             </div>
 
+            {/* Cancelled Order with Unrefunded Net Paid Liability Alert */}
+            {isCancelled && unrefundedLiability > 0 && (
+              <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div>
+                    <span className="font-bold">مبلغ مستحق الإرجاع للعميل: </span>
+                    <span>تم إلغاء هذا الطلب مع وجود رصيد صافٍ محصل قدره <b>{unrefundedLiability} ر.س</b> لم يتم استرداده بالكامل.</span>
+                  </div>
+                </div>
+                {canAccessPayments && maxRefundable > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleOpenRefundModal}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer"
+                  >
+                    تسجيل سند استرداد ({unrefundedLiability} ر.س)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Financial Mismatch Audit Warning */}
+            {hasFinancialMismatch && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">تنبيه تدقيق مالي: </span>
+                  <span>{mismatchReason}</span>
+                  <span className="text-[11px] text-amber-700 block mt-0.5">
+                    (الحسابات المعروضة تستند حصراً إلى سندات القبض والاسترداد الموثقة بالسجل الفعلي).
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Inline Payment Submission */}
-            {showPaymentInput && (
+            {showPaymentInput && !isCancelled && activeRemaining > 0 && (
               <form onSubmit={handleAddPayment} className="p-3 bg-white rounded-xl border border-emerald-300 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
                   <h4 className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
@@ -692,7 +773,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <label className="text-[11px] font-bold text-stone-600 block mb-1">المبلغ (ر.س):</label>
                     <input
                       type="number"
-                      max={p.remainingAmount}
+                      max={activeRemaining}
+                      min="1"
+                      step="0.01"
                       disabled={isSubmittingPayment}
                       value={payAmount}
                       onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}

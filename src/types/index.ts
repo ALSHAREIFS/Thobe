@@ -89,8 +89,47 @@ export interface Shop {
   ownerUid?: string;
   ownerEmail?: string;
   ownerName?: string;
+  maxEmployees?: number; // الحد الأقصى لحسابات الموظفين النشطة
+  employeeCount?: number; // عدد حسابات الموظفين النشطة حالياً (بدون المالك)
+  subscriptionPlan?: string; // خطة الاشتراك
+  subscriptionStatus?: string; // حالة الاشتراك
+  lastSeatAction?: SeatActionRecord; // علامة مطابقة العملية للمقاعد (CREATE / DEACTIVATE / REACTIVATE / DELETE)
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SeatActionRecord {
+  action: 'CREATE' | 'DEACTIVATE' | 'REACTIVATE' | 'DELETE';
+  employeeUid: string;
+  timestamp: string;
+}
+
+export const DEFAULT_MAX_EMPLOYEES = 3;
+export const MAX_SAFE_EMPLOYEES = 100;
+
+export const EMPLOYEE_ERROR_CODES = {
+  LIMIT_REACHED: 'EMPLOYEE_LIMIT_REACHED',
+  ALREADY_INACTIVE: 'EMPLOYEE_ALREADY_INACTIVE',
+  ALREADY_ACTIVE: 'EMPLOYEE_ALREADY_ACTIVE',
+  CREATION_FAILED: 'EMPLOYEE_CREATION_FAILED',
+  CREATION_PARTIAL_FAILURE: 'EMPLOYEE_CREATION_PARTIAL_FAILURE',
+  RECONCILIATION_REQUIRED: 'EMPLOYEE_COUNT_RECONCILIATION_REQUIRED',
+  SHOP_NOT_FOUND: 'SHOP_NOT_FOUND',
+  INVALID_SEAT_LIMIT: 'INVALID_SEAT_LIMIT',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+} as const;
+
+export type EmployeeErrorCode = typeof EMPLOYEE_ERROR_CODES[keyof typeof EMPLOYEE_ERROR_CODES];
+
+export class EmployeeDomainError extends Error {
+  code: EmployeeErrorCode | string;
+  details?: any;
+  constructor(code: EmployeeErrorCode | string, messageAr: string, details?: any) {
+    super(messageAr);
+    this.name = 'EmployeeDomainError';
+    this.code = code;
+    this.details = details;
+  }
 }
 
 export interface UserProfile {
@@ -107,6 +146,8 @@ export interface UserProfile {
   createdBy?: string;
   lastLoginAt?: string;
 }
+
+export type MeasurementUnit = 'cm' | 'inch';
 
 export interface Customer {
   customerId: string;
@@ -157,7 +198,7 @@ export interface MeasurementRecord {
   createdAt: string;
   updatedAt: string;
   measurements: MeasurementData;
-  unit: 'cm' | 'inch';
+  unit: MeasurementUnit;
   notes?: string;
 }
 
@@ -307,6 +348,7 @@ export interface Order {
   garmentType: string;
   quantity: number;
   measurements: MeasurementData;
+  measurementUnit?: MeasurementUnit;
   measurementId?: string;
   tailoringDetails: TailoringDetails;
   pricing: OrderPricing;
