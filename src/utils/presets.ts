@@ -28,21 +28,51 @@ export const validateMeasurements = (
   const invalid: string[] = [];
 
   // Essential required fields
-  if (!measurements || !measurements.length || measurements.length <= 0) missing.push('طول الثوب');
-  if (!measurements || !measurements.shoulder || measurements.shoulder <= 0) missing.push('عرض الكتف');
-  if (!measurements || !measurements.chest || measurements.chest <= 0) missing.push('وسع الصدر');
-  if (!measurements || !measurements.sleeveLength || measurements.sleeveLength <= 0) missing.push('طول الكم');
-  if (!measurements || !measurements.neck || measurements.neck <= 0) missing.push('محيط الرقبة (الياقة)');
+  if (!measurements || measurements.length === undefined || measurements.length === null || measurements.length === 0) {
+    missing.push('طول الثوب');
+  } else if (measurements.length < 0) {
+    invalid.push('طول الثوب لا يمكن أن يكون سالباً');
+  }
 
-  // Range validation for entered fields based on unit
+  if (!measurements || measurements.shoulder === undefined || measurements.shoulder === null || measurements.shoulder === 0) {
+    missing.push('عرض الكتف');
+  } else if (measurements.shoulder < 0) {
+    invalid.push('عرض الكتف لا يمكن أن يكون سالباً');
+  }
+
+  if (!measurements || measurements.chest === undefined || measurements.chest === null || measurements.chest === 0) {
+    missing.push('وسع الصدر');
+  } else if (measurements.chest < 0) {
+    invalid.push('وسع الصدر لا يمكن أن يكون سالباً');
+  }
+
+  if (!measurements || measurements.sleeveLength === undefined || measurements.sleeveLength === null || measurements.sleeveLength === 0) {
+    missing.push('طول الكم');
+  } else if (measurements.sleeveLength < 0) {
+    invalid.push('طول الكم لا يمكن أن يكون سالباً');
+  }
+
+  if (!measurements || measurements.neck === undefined || measurements.neck === null || measurements.neck === 0) {
+    missing.push('محيط الرقبة (الياقة)');
+  } else if (measurements.neck < 0) {
+    invalid.push('محيط الرقبة لا يمكن أن يكون سالباً');
+  }
+
+  // Range validation for all entered fields based on unit
   for (const field of MEASUREMENT_FIELDS_CONFIG) {
     const val = measurements ? measurements[field.key] : undefined;
-    if (typeof val === 'number' && val > 0) {
-      const min = unit === 'inch' ? Math.round((field.min / 2.54) * 10) / 10 : field.min;
-      const max = unit === 'inch' ? Math.round((field.max / 2.54) * 10) / 10 : field.max;
-      // Allow a small 10% tolerance beyond absolute min/max for exceptional human bodies
-      if (val < min * 0.8 || val > max * 1.3) {
-        invalid.push(`${field.label} (${val} ${unit === 'inch' ? 'إنش' : 'سم'}) غير منطقي`);
+    if (typeof val === 'number') {
+      if (isNaN(val) || val < 0) {
+        if (!invalid.some((inv) => inv.includes(field.label) || inv.includes(field.shortLabel))) {
+          invalid.push(`${field.label} (${val} ${unit === 'inch' ? 'إنش' : 'سم'}) غير صحيح`);
+        }
+      } else if (val > 0) {
+        const min = unit === 'inch' ? Math.round((field.min / 2.54) * 10) / 10 : field.min;
+        const max = unit === 'inch' ? Math.round((field.max / 2.54) * 10) / 10 : field.max;
+        // Allow a small 10% tolerance beyond absolute min/max for exceptional human bodies
+        if (val < min * 0.8 || val > max * 1.3) {
+          invalid.push(`${field.label} (${val} ${unit === 'inch' ? 'إنش' : 'سم'}) غير منطقي`);
+        }
       }
     }
   }

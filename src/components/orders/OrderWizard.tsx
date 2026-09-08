@@ -806,7 +806,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               measurements={measurements}
               onChange={setMeasurements}
               unit={measurementUnit}
-              onUnitChange={setMeasurementUnit}
+              onUnitChange={(newUnit) => {
+                if (newUnit !== measurementUnit) {
+                  setMeasurements((prev) => convertMeasurementData(prev, measurementUnit, newUnit));
+                  setMeasurementUnit(newUnit);
+                }
+              }}
               notes={measurementNotes}
               onNotesChange={setMeasurementNotes}
             />

@@ -38,6 +38,7 @@ import {
   EMPLOYEE_ERROR_CODES,
   EmployeeDomainError,
 } from '../types';
+import { validateMeasurements } from '../utils/presets';
 
 // Helper to format Firestore errors clearly
 export function parseFirebaseError(err: any): string {
@@ -868,6 +869,17 @@ export const TailorService = {
     }
   ): Promise<MeasurementRecord> {
     try {
+      if (data.measurements) {
+        const measValidation = validateMeasurements(data.measurements, data.unit || 'cm');
+        if (!measValidation.isValid) {
+          const errList = [
+            measValidation.missingFields.length > 0 ? `المقاسات المفقودة: ${measValidation.missingFields.join('، ')}` : '',
+            measValidation.invalidFields && measValidation.invalidFields.length > 0 ? `قيم غير صحيحة: ${measValidation.invalidFields.join('، ')}` : '',
+          ].filter(Boolean).join(' | ');
+          throw new Error(`بيانات المقاسات غير صحيحة: ${errList}`);
+        }
+      }
+
       const docRef = doc(collection(db, `shops/${shopId}/customers/${customerId}/measurements`));
       const measurementId = docRef.id;
       const now = new Date().toISOString();
@@ -1027,6 +1039,18 @@ export const TailorService = {
   ): Promise<Order> {
     try {
       const { initialPaymentMethod, ...orderDataToSave } = orderInput;
+
+      // Validate measurements BEFORE creating order
+      if (orderInput.measurements) {
+        const measValidation = validateMeasurements(orderInput.measurements, orderInput.measurementUnit || 'cm');
+        if (!measValidation.isValid) {
+          const errList = [
+            measValidation.missingFields.length > 0 ? `المقاسات المفقودة: ${measValidation.missingFields.join('، ')}` : '',
+            measValidation.invalidFields && measValidation.invalidFields.length > 0 ? `قيم غير صحيحة: ${measValidation.invalidFields.join('، ')}` : '',
+          ].filter(Boolean).join(' | ');
+          throw new Error(`بيانات المقاسات غير صحيحة: ${errList}`);
+        }
+      }
 
       // Validate payment method BEFORE starting transaction if initial deposit is recorded
       const hasInitialPayment = (orderInput.pricing?.paidAmount || 0) > 0;
@@ -1188,6 +1212,18 @@ export const TailorService = {
               `لا يمكن تخفيض إجمالي الطلب (${data.pricing.totalAmount} ر.س) ليكون أقل من المبلغ المسجل ماليًا (${actualNetPaid} ر.س). يرجى معالجة الوضع المالي أولاً أو إرجاع المبلغ الزائد للعميل.`
             );
           }
+        }
+      }
+
+      // Protection: If measurements are being modified, ensure they are valid
+      if (data.measurements) {
+        const measValidation = validateMeasurements(data.measurements, data.measurementUnit || 'cm');
+        if (!measValidation.isValid) {
+          const errList = [
+            measValidation.missingFields.length > 0 ? `المقاسات المفقودة: ${measValidation.missingFields.join('، ')}` : '',
+            measValidation.invalidFields && measValidation.invalidFields.length > 0 ? `قيم غير صحيحة: ${measValidation.invalidFields.join('، ')}` : '',
+          ].filter(Boolean).join(' | ');
+          throw new Error(`بيانات المقاسات غير صحيحة: ${errList}`);
         }
       }
 
