@@ -27,6 +27,7 @@ export const SHOP_STATUS_MAP: Record<ShopStatus, { label: string; color: string;
 
 export interface ShopRequest {
   requestId: string;
+  uid?: string;
   ownerName: string;
   shopName: string;
   email: string;

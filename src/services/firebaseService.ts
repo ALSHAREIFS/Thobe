@@ -16,7 +16,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { initializeApp as initSecondaryApp, deleteApp } from 'firebase/app';
-import { getAuth as getSecondaryAuth, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { getAuth as getSecondaryAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { auth, db, firebaseConfig } from '../firebase/config';
 import {
   Customer,
@@ -78,7 +78,71 @@ export const TailorService = {
   // -------------------------------------------------------------
 
   /**
-   * Submit a new Shop registration request (Public)
+   * Submit a new Shop registration request with direct Firebase Authentication.
+   * Creates real user in Firebase Authentication with user's chosen password.
+   * The password is NEVER saved to Firestore, logs, or storage.
+   */
+  async createShopRequestWithAuth(data: {
+    ownerName: string;
+    shopName: string;
+    email: string;
+    phone: string;
+    city: string;
+    password: string;
+    notes?: string;
+  }): Promise<ShopRequest> {
+    try {
+      const email = data.email.trim().toLowerCase();
+      const password = data.password;
+
+      if (!password || password.length < 6) {
+        throw new Error('كلمة المرور يجب أن تكون ٦ خانات على الأقل');
+      }
+
+      // 1. Create real Auth user account in Firebase Authentication
+      const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      const authUser = userCred.user;
+      const realUid = authUser.uid;
+
+      // 2. Prepare PENDING shop registration request document in Firestore (STRICTLY NO PASSWORD)
+      const docRef = doc(collection(db, 'shopRequests'));
+      const requestId = docRef.id;
+      const now = new Date().toISOString();
+
+      const request: ShopRequest = {
+        requestId,
+        uid: realUid,
+        ownerName: data.ownerName.trim(),
+        shopName: data.shopName.trim(),
+        email,
+        phone: data.phone.trim(),
+        city: data.city.trim(),
+        notes: data.notes?.trim() || '',
+        status: 'PENDING',
+        createdAt: now,
+      };
+
+      await setDoc(docRef, request);
+
+      // 3. Immediately sign out the new user so they do not enter an unauthorized active session
+      await signOut(auth);
+
+      return request;
+    } catch (err: any) {
+      if (auth.currentUser) {
+        try {
+          await signOut(auth);
+        } catch (e) {
+          // ignore cleanup error
+        }
+      }
+      console.error('Error creating shop request with auth:', err);
+      throw new Error(parseFirebaseError(err));
+    }
+  },
+
+  /**
+   * Submit a new Shop registration request (Legacy/Fallback)
    */
   async createShopRequest(data: {
     ownerName: string;
@@ -109,6 +173,125 @@ export const TailorService = {
       return request;
     } catch (err: any) {
       console.error('Error creating shop request:', err);
+      throw new Error(parseFirebaseError(err));
+    }
+  },
+
+  /**
+   * Get a shop request for a specific user (by UID or Email)
+   */
+  async getShopRequestByUser(uid: string, email?: string | null): Promise<ShopRequest | null> {
+    try {
+      // Query by UID
+      if (uid) {
+        const qUid = query(
+          collection(db, 'shopRequests'),
+          where('uid', '==', uid),
+          limit(1)
+        );
+        const snapUid = await getDocs(qUid);
+        if (!snapUid.empty) {
+          return snapUid.docs[0].data() as ShopRequest;
+        }
+      }
+
+      // Query by Email
+      if (email) {
+        const qEmail = query(
+          collection(db, 'shopRequests'),
+          where('email', '==', email.trim().toLowerCase()),
+          limit(1)
+        );
+        const snapEmail = await getDocs(qEmail);
+        if (!snapEmail.empty) {
+          return snapEmail.docs[0].data() as ShopRequest;
+        }
+      }
+
+      return null;
+    } catch (err) {
+      console.warn('Could not query shop request by user:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Super Admin approves a Shop Request using the user's existing Firebase Auth UID.
+   * NO new password is created or needed.
+   */
+  async adminApproveShopRequest(
+    request: ShopRequest,
+    options?: {
+      subscriptionPlan?: 'STARTER' | 'PRO' | 'ENTERPRISE';
+      maxEmployees?: number;
+    }
+  ): Promise<{ shop: Shop; owner: UserProfile }> {
+    try {
+      if (!request.uid) {
+        throw new Error('لا يوجد معرف مستخدم حقيقي (UID) مرتبط بهذا الطلب. تأكد من تقديم الطلب بالنموذج الحديث.');
+      }
+
+      const now = new Date().toISOString();
+      const shopRef = doc(collection(db, 'shops'));
+      const shopId = shopRef.id;
+      const ownerUid = request.uid;
+
+      // 1. Prepare Shop Record
+      const newShop: Shop = {
+        shopId,
+        name: request.shopName.trim(),
+        shopName: request.shopName.trim(),
+        phone: request.phone.trim(),
+        city: request.city.trim(),
+        address: '',
+        crNumber: '',
+        taxNumber: '',
+        vatNumber: '',
+        currency: 'SAR',
+        defaultDeliveryDays: 5,
+        termsAndConditions: '١. البروفة شرط أساسي قبل الاستلام النهائي.\n٢. المحل غير مسؤول عن الثياب بعد مرور ٣٠ يوماً من تاريخ الجاهزية.',
+        status: 'ACTIVE',
+        ownerUid,
+        ownerEmail: request.email.trim().toLowerCase(),
+        ownerName: request.ownerName.trim(),
+        maxEmployees: typeof options?.maxEmployees === 'number' && options.maxEmployees >= 0 ? options.maxEmployees : DEFAULT_MAX_EMPLOYEES,
+        employeeCount: 0,
+        subscriptionPlan: options?.subscriptionPlan || 'STARTER',
+        subscriptionStatus: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // 2. Prepare Shop Account Profile Record (Strictly SHOP role)
+      const newOwner: UserProfile = {
+        userId: ownerUid,
+        uid: ownerUid,
+        shopId,
+        fullName: request.ownerName.trim(),
+        email: request.email.trim().toLowerCase(),
+        role: 'SHOP',
+        phone: request.phone.trim(),
+        isActive: true,
+        createdAt: now,
+        lastLoginAt: now,
+      };
+
+      // 3. Persist to Firestore: users, shops, and shops/{shopId}/users
+      await setDoc(doc(db, 'users', ownerUid), newOwner);
+      await setDoc(shopRef, newShop);
+      await setDoc(doc(db, `shops/${shopId}/users`, ownerUid), newOwner);
+
+      // 4. Update the shopRequest status to APPROVED
+      await updateDoc(doc(db, 'shopRequests', request.requestId), {
+        status: 'APPROVED',
+        assignedShopId: shopId,
+        assignedOwnerUid: ownerUid,
+        reviewedAt: now,
+      });
+
+      return { shop: newShop, owner: newOwner };
+    } catch (err: any) {
+      console.error('Error in adminApproveShopRequest:', err);
       throw new Error(parseFirebaseError(err));
     }
   },
@@ -677,9 +860,20 @@ export const TailorService = {
 
       // Invariant C: Protected fields cannot be modified via general shop updates
       delete updatedData.maxEmployees;
+      delete updatedData.maxCars;
+      delete updatedData.maxBranches;
       delete updatedData.employeeCount;
       delete updatedData.subscriptionPlan;
       delete updatedData.subscriptionStatus;
+      delete updatedData.trialEndsAt;
+      delete updatedData.subscriptionEndsAt;
+      delete updatedData.plan;
+      delete updatedData.billing;
+      delete updatedData.billingCycle;
+      delete updatedData.billingPeriod;
+      delete updatedData.billingStatus;
+      delete updatedData.pricingPlan;
+      delete updatedData.limits;
       delete updatedData.status;
       delete updatedData.ownerUid;
       delete updatedData.shopId;

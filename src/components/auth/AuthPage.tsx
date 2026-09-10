@@ -17,6 +17,8 @@ import {
   Clock,
   Send,
   HelpCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 export const AuthPage: React.FC = () => {
@@ -35,6 +37,10 @@ export const AuthPage: React.FC = () => {
   const [shopName, setShopName] = useState('');
   const [city, setCity] = useState('الرياض');
   const [notes, setNotes] = useState('');
+  const [requestPassword, setRequestPassword] = useState('');
+  const [requestConfirmPassword, setRequestConfirmPassword] = useState('');
+  const [showRequestPassword, setShowRequestPassword] = useState(false);
+  const [showRequestConfirmPassword, setShowRequestConfirmPassword] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
 
   // Forgot password state
@@ -63,6 +69,17 @@ export const AuthPage: React.FC = () => {
     e.preventDefault();
     setLocalError(null);
     clearAuthError();
+
+    if (requestPassword.length < 6) {
+      setLocalError('كلمة المرور يجب أن تكون ٦ خانات على الأقل');
+      return;
+    }
+
+    if (requestPassword !== requestConfirmPassword) {
+      setLocalError('كلمة المرور وتأكيد كلمة المرور غير متطابقتين');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await submitRegistrationRequest({
@@ -71,8 +88,12 @@ export const AuthPage: React.FC = () => {
         email: ownerEmail,
         phone: ownerPhone,
         city,
+        password: requestPassword,
         notes,
       });
+      // Clear password values from memory
+      setRequestPassword('');
+      setRequestConfirmPassword('');
       setRequestSubmitted(true);
     } catch (err: any) {
       setLocalError(err.message || 'فشل إرسال طلب الانضمام');
@@ -296,25 +317,34 @@ export const AuthPage: React.FC = () => {
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-base font-black text-emerald-950">تم إرسال طلب اشتراك متجرك بنجاح!</h3>
+                    <h3 className="text-base font-black text-emerald-950">تم استلام طلب اشتراك متجرك بنجاح!</h3>
                     <p className="text-xs text-emerald-800 leading-relaxed">
-                      شكراً لاهتمامك بالانضمام إلى منصة "ثوبي". تم استلام طلبك وهو الآن قيد المراجعة لدى إدارة المنصة.
+                      طلبك قيد المراجعة حالياً لدى إدارة منصة "ثوبي". سيتم تفعيل حسابك ومتجرك فور اعتماد الطلب.
                     </p>
                   </div>
-                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 text-[11px] text-stone-600 text-right space-y-1">
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 text-[11px] text-stone-600 text-right space-y-1.5">
                     <div className="font-bold text-stone-800">الخطوات القادمة:</div>
-                    <div>١. مراجعة بيانات المحل والتحقق من الجوال.</div>
-                    <div>٢. تفعيل بيئة المحل السحابية وحساب المالك.</div>
-                    <div>٣. إرسال بيانات الدخول المعتمدة إليك عبر الواتساب أو البريد.</div>
+                    <div className="flex items-center gap-1.5 text-stone-700">
+                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center">١</span>
+                      <span>مراجعة بيانات المحل واعتماد الطلب من قِبل الإدارة.</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-stone-700">
+                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center">٢</span>
+                      <span>إنشاء مساحة متجرك المستقلة وتفعيل الحساب تلقائياً.</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-stone-700">
+                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center">٣</span>
+                      <span>يمكنك تسجيل الدخول مباشرة بنفس البريد الإلكتروني وكلمة المرور التي حددتها.</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => {
                       setRequestSubmitted(false);
                       setTab('login');
                     }}
-                    className="w-full py-3 bg-[#1A365D] text-white text-xs font-bold rounded-xl shadow-md"
+                    className="w-full py-3 bg-[#1A365D] hover:bg-[#204373] text-white text-xs font-bold rounded-xl shadow-md transition-all"
                   >
-                    العودة لصفحة تسجيل الدخول
+                    الانتقال لصفحة تسجيل الدخول
                   </button>
                 </div>
               ) : (
@@ -322,7 +352,7 @@ export const AuthPage: React.FC = () => {
                   <div className="text-right space-y-1 mb-2">
                     <h2 className="text-lg font-black text-stone-900">طلب اشتراك متجر جديد</h2>
                     <p className="text-xs text-stone-500">
-                      قدّم بيانات محلك، وسيتم التواصل معك وتفعيل حسابك السحابي المستقل
+                      قدّم بيانات محلك وحدد كلمة المرور الخاصة بك، وسيتم تفعيل حسابك السحابي بعد اعتماد الإدارة
                     </p>
                   </div>
 
@@ -410,6 +440,59 @@ export const AuthPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Passwords for Account Creation */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">كلمة المرور للحساب *</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-stone-400 absolute right-3 top-3 pointer-events-none" />
+                        <input
+                          type={showRequestPassword ? 'text' : 'password'}
+                          required
+                          dir="ltr"
+                          minLength={6}
+                          value={requestPassword}
+                          onChange={(e) => setRequestPassword(e.target.value)}
+                          placeholder="٦ خانات على الأقل"
+                          className="w-full pr-9 pl-9 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] text-left font-mono"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowRequestPassword(!showRequestPassword)}
+                          className="absolute left-3 top-3 text-stone-400 hover:text-stone-600 transition-colors"
+                        >
+                          {showRequestPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">تأكيد كلمة المرور *</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-stone-400 absolute right-3 top-3 pointer-events-none" />
+                        <input
+                          type={showRequestConfirmPassword ? 'text' : 'password'}
+                          required
+                          dir="ltr"
+                          minLength={6}
+                          value={requestConfirmPassword}
+                          onChange={(e) => setRequestConfirmPassword(e.target.value)}
+                          placeholder="تأكيد كلمة المرور"
+                          className="w-full pr-9 pl-9 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] text-left font-mono"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowRequestConfirmPassword(!showRequestConfirmPassword)}
+                          className="absolute left-3 top-3 text-stone-400 hover:text-stone-600 transition-colors"
+                        >
+                          {showRequestConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold text-stone-700 mb-1">ملاحظات أو تفاصيل إضافية (اختياري)</label>
                     <textarea
@@ -427,7 +510,7 @@ export const AuthPage: React.FC = () => {
                     className="w-full py-3.5 bg-[#1A365D] hover:bg-[#204373] text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                   >
                     {isSubmitting ? (
-                      <span>جاري إرسال الطلب...</span>
+                      <span>جاري تسجيل الحساب وإرسال الطلب...</span>
                     ) : (
                       <>
                         <Send className="w-4 h-4" />

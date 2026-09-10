@@ -23,6 +23,7 @@ import {
   ArrowRight,
   Store,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -190,10 +191,12 @@ const AppContent: React.FC = () => {
     currentUser,
     currentShop,
     firebaseUser,
+    userShopRequest,
     loading,
     isSuperAdmin,
     isShopSuspended,
     platformViewMode,
+    reloadAuthUser,
     signOut,
   } = useAuth();
 
@@ -209,8 +212,116 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Not logged in -> Show Authentication / Registration Request Page
-  if (!firebaseUser || !currentUser) {
+  // 1. Not logged in -> Show Authentication / Registration Request Page
+  if (!firebaseUser) {
+    return <AuthPage />;
+  }
+
+  // 2. User is authenticated, but their shop request is still PENDING -> Block access and show Pending status
+  if (userShopRequest && userShopRequest.status === 'PENDING' && !isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+        <div className="max-w-md w-full bg-slate-900 border border-amber-500/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl animate-in fade-in">
+          <div className="w-16 h-16 bg-amber-950/80 border border-amber-500/50 rounded-2xl flex items-center justify-center text-amber-400 mx-auto shadow-inner">
+            <Clock className="w-8 h-8 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-xl font-black text-white">طلب اشتراك المتجر قيد المراجعة</h2>
+            <p className="text-xs text-amber-400 font-bold">
+              متجر: {userShopRequest.shopName}
+            </p>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            تم استلام طلب اشتراك متجرك وبيانات حسابك بنجاح، والطلب حالياً قيد المراجعة والاعتماد لدى إدارة منصة "ثوبي".
+          </p>
+
+          <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-right space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-400">المالك / المدير:</span>
+              <span className="text-white font-bold">{userShopRequest.ownerName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">البريد الإلكتروني:</span>
+              <span dir="ltr" className="text-slate-200 font-mono">{userShopRequest.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">المدينة:</span>
+              <span className="text-slate-200">{userShopRequest.city}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">تاريخ الطلب:</span>
+              <span className="text-slate-200">{new Date(userShopRequest.createdAt).toLocaleDateString('ar-SA')}</span>
+            </div>
+            <div className="flex justify-between items-center pt-1 border-t border-slate-900">
+              <span className="text-slate-400">حالة الطلب:</span>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-950 text-amber-400 border border-amber-800/60">
+                بانتظار موافقة الإدارة
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-blue-950/30 border border-blue-900/50 rounded-xl text-[11px] text-blue-300 text-right leading-relaxed">
+            بمجرد قيام إدارة المنصة باعتماد طلبك، ستتمكن من الدخول فوراً وبدء إدارة متجرك دون الحاجة لإنشاء حساب جديد.
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <button
+              onClick={() => reloadAuthUser()}
+              className="w-full py-3 bg-[#1A365D] hover:bg-[#204373] text-white text-xs font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>تحديث حالة الطلب</span>
+            </button>
+            <button
+              onClick={() => signOut()}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>تسجيل الخروج</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. User is authenticated, but their shop registration request was REJECTED
+  if (userShopRequest && userShopRequest.status === 'REJECTED' && !isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+        <div className="max-w-md w-full bg-slate-900 border border-rose-800/80 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-2xl animate-in fade-in">
+          <div className="w-16 h-16 bg-rose-950/80 border border-rose-800 rounded-2xl flex items-center justify-center text-rose-400 mx-auto">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-lg font-black text-white">تم رفض طلب اشتراك المتجر</h2>
+            <p className="text-xs text-rose-300 font-bold">
+              متجر "{userShopRequest.shopName}"
+            </p>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            نعتذر منك، لم تتم الموافقة على طلب انضمام المتجر إلى منصة ثوبي.
+          </p>
+          {userShopRequest.rejectionReason && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-300 text-right">
+              <span className="font-bold text-slate-400 block mb-1">سبب الرفض:</span>
+              {userShopRequest.rejectionReason}
+            </div>
+          )}
+          <button
+            onClick={() => signOut()}
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>تسجيل الخروج</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Not logged in with complete profile -> Show Auth Page
+  if (!currentUser) {
     return <AuthPage />;
   }
 

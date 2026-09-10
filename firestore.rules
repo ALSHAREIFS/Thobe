@@ -123,7 +123,12 @@ service cloud.firestore {
     // 3. SHOP REGISTRATION REQUESTS (Public Inbound Queue)
     // =========================================================
     match /shopRequests/{requestId} {
-      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+      allow read: if isSuperAdmin() || (
+        isAuthenticated() && (
+          resource.data.email == request.auth.token.email ||
+          (('uid' in resource.data) && resource.data.uid == request.auth.uid)
+        )
+      );
       
       allow create: if request.resource.data.status == 'PENDING' &&
                        request.resource.data.ownerName is string &&
@@ -222,25 +227,34 @@ service cloud.firestore {
       // Shop updates: Super Admin full; SHOP can update profile/settings but CANNOT change protected subscription/identity keys or exceed seat limits
       allow update: if isSuperAdmin() || (
         isShopAccount(shopId) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'ownerUid', 'shopId', 'createdAt']) &&
-        // Invariant C & D: SHOP cannot modify maxEmployees
-        (('maxEmployees' in resource.data) && request.resource.data.maxEmployees == resource.data.maxEmployees) &&
-        // Invariant C: SHOP cannot modify subscriptionPlan or subscriptionStatus
-        (
-          (!('subscriptionPlan' in resource.data) && !('subscriptionPlan' in request.resource.data)) ||
-          (('subscriptionPlan' in resource.data) && request.resource.data.subscriptionPlan == resource.data.subscriptionPlan)
-        ) &&
-        (
-          (!('subscriptionStatus' in resource.data) && !('subscriptionStatus' in request.resource.data)) ||
-          (('subscriptionStatus' in resource.data) && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus)
-        ) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status',
+          'ownerUid',
+          'shopId',
+          'createdAt',
+          'maxEmployees',
+          'maxCars',
+          'maxBranches',
+          'subscriptionPlan',
+          'subscriptionStatus',
+          'trialEndsAt',
+          'subscriptionEndsAt',
+          'plan',
+          'billing',
+          'billingCycle',
+          'billingPeriod',
+          'billingStatus',
+          'pricingPlan',
+          'limits'
+        ]) &&
         // Strict seat counter rules: either employeeCount & lastSeatAction are untouched, OR they are coupled to an atomic membership transition
         (
-          // Case 1: General profile update where employeeCount and lastSeatAction are unchanged
+          // Case 1: General profile update where employeeCount and lastSeatAction are untouched
           (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['employeeCount', 'lastSeatAction'])) ||
           // Case 2: Atomic seat action coupled with corresponding employee document transition
-          // RECONCILIATION REQUIREMENT: resource.data MUST already have both maxEmployees and employeeCount.
+          // Both fields MUST be modified simultaneously and coupled to a verifiable membership document transition
           (
+            request.resource.data.diff(resource.data).affectedKeys().hasAll(['employeeCount', 'lastSeatAction']) &&
             ('maxEmployees' in resource.data) &&
             ('employeeCount' in resource.data) &&
             request.resource.data.employeeCount is int &&
@@ -249,6 +263,7 @@ service cloud.firestore {
             ('lastSeatAction' in request.resource.data) &&
             request.resource.data.lastSeatAction.employeeUid is string &&
             request.resource.data.lastSeatAction.employeeUid.size() > 0 &&
+            request.resource.data.lastSeatAction.action is string &&
             (
               // Subcase 2.1: CREATE employee (+1)
               (
@@ -264,7 +279,8 @@ service cloud.firestore {
               (
                 request.resource.data.lastSeatAction.action == 'DEACTIVATE' &&
                 ('employeeCount' in resource.data) &&
-                request.resource.data.employeeCount == (resource.data.employeeCount > 0 ? resource.data.employeeCount - 1 : 0) &&
+                resource.data.employeeCount > 0 &&
+                request.resource.data.employeeCount == resource.data.employeeCount - 1 &&
                 exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
                 existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
                 get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true &&
@@ -275,6 +291,7 @@ service cloud.firestore {
                 request.resource.data.lastSeatAction.action == 'REACTIVATE' &&
                 ('employeeCount' in resource.data) &&
                 request.resource.data.employeeCount == resource.data.employeeCount + 1 &&
+                request.resource.data.employeeCount <= resource.data.maxEmployees &&
                 exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
                 existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
                 get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == false &&
@@ -284,7 +301,8 @@ service cloud.firestore {
               (
                 request.resource.data.lastSeatAction.action == 'DELETE' &&
                 ('employeeCount' in resource.data) &&
-                request.resource.data.employeeCount == (resource.data.employeeCount > 0 ? resource.data.employeeCount - 1 : 0) &&
+                resource.data.employeeCount > 0 &&
+                request.resource.data.employeeCount == resource.data.employeeCount - 1 &&
                 exists(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)) &&
                 get(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid)).data.isActive == true &&
                 !existsAfter(/databases/$(database)/documents/shops/$(shopId)/users/$(request.resource.data.lastSeatAction.employeeUid))
@@ -308,7 +326,9 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
           getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'CREATE' &&
           ('employeeCount' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
-          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1
+          ('maxEmployees' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1 &&
+          getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount <= get(/databases/$(database)/documents/shops/$(shopId)).data.maxEmployees
         ) || (
           isAuthenticated() &&
           request.auth.uid == userId &&
@@ -334,10 +354,9 @@ service cloud.firestore {
               request.resource.data.isActive == false &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'DEACTIVATE' &&
-              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == (
-                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 ?
-                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1 : 0
-              )
+              ('employeeCount' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+              get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1
             ) ||
             // Subcase 3: Reactivating (isActive: false -> true) coupled with shop increment
             (
@@ -345,7 +364,10 @@ service cloud.firestore {
               request.resource.data.isActive == true &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'REACTIVATE' &&
-              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1
+              ('employeeCount' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+              ('maxEmployees' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount + 1 &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount <= get(/databases/$(database)/documents/shops/$(shopId)).data.maxEmployees
             )
           )
         ) || (
@@ -373,10 +395,9 @@ service cloud.firestore {
               resource.data.isActive == true &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.employeeUid == userId &&
               getAfter(/databases/$(database)/documents/shops/$(shopId)).data.lastSeatAction.action == 'DELETE' &&
-              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == (
-                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 ?
-                get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1 : 0
-              )
+              ('employeeCount' in get(/databases/$(database)/documents/shops/$(shopId)).data) &&
+              get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount > 0 &&
+              getAfter(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount == get(/databases/$(database)/documents/shops/$(shopId)).data.employeeCount - 1
             )
           )
         );

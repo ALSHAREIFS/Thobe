@@ -35,12 +35,14 @@ interface AuthContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
   reloadAuthUser: () => Promise<boolean>;
+  userShopRequest: ShopRequest | null;
   submitRegistrationRequest: (data: {
     ownerName: string;
     shopName: string;
     email: string;
     phone: string;
     city: string;
+    password: string;
     notes?: string;
   }) => Promise<ShopRequest>;
   updateShopSettings: (data: Partial<Shop>) => Promise<Shop>;
@@ -55,6 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentShop, setCurrentShop] = useState<Shop | null>(null);
+  const [userShopRequest, setUserShopRequest] = useState<ShopRequest | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fullName: user.displayName || rawProfile?.fullName,
           phone: rawProfile?.phone,
         });
+        setUserShopRequest(null);
         setCurrentUser(resolvedProfile);
         setCurrentShop(resolvedShop);
         return;
@@ -121,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               fullName: rawProfile.fullName || user.displayName,
               phone: rawProfile.phone,
             });
+            setUserShopRequest(null);
             setCurrentUser(resolvedProfile);
             setCurrentShop(shop);
             return;
@@ -135,11 +140,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...memberDoc,
               role: 'EMPLOYEE', // strictly EMPLOYEE
             };
+            setUserShopRequest(null);
             setCurrentUser(resolvedProfile);
             setCurrentShop(shop);
             return;
           } else {
             console.warn('User has inactive or missing employee membership document');
+            setUserShopRequest(null);
             setCurrentUser(rawProfile);
             setCurrentShop(shop);
             return;
@@ -149,8 +156,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // E. Fallback for Super Admin or basic user
+      // E. Check if this authenticated user has an inbound registration request in shopRequests
+      let userReq: ShopRequest | null = null;
+      try {
+        userReq = await TailorService.getShopRequestByUser(user.uid, user.email);
+      } catch (reqErr) {
+        console.warn('Could not check user shop request:', reqErr);
+      }
+      setUserShopRequest(userReq);
+
+      // F. Fallback for Super Admin or basic user
       if (isSuper) {
+        setUserShopRequest(null);
         const superProfile: UserProfile = {
           userId: user.uid,
           uid: user.uid,
@@ -227,6 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await firebaseSignOut(auth);
       setCurrentUser(null);
       setCurrentShop(null);
+      setUserShopRequest(null);
       setFirebaseUser(null);
       setIsSuperAdmin(false);
       setAuthError(null);
@@ -280,11 +298,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string;
     phone: string;
     city: string;
+    password: string;
     notes?: string;
   }) => {
     try {
       setAuthError(null);
-      const req = await TailorService.createShopRequest(data);
+      const req = await TailorService.createShopRequestWithAuth(data);
       return req;
     } catch (err: any) {
       const msg = parseFirebaseError(err);
@@ -337,6 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     currentUser,
     currentShop,
+    userShopRequest,
     firebaseUser,
     loading,
     authError,

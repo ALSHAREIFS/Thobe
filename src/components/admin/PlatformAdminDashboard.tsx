@@ -54,6 +54,12 @@ export const PlatformAdminDashboard: React.FC = () => {
     password: string;
     shopId: string;
   } | null>(null);
+  const [approvedSuccessData, setApprovedSuccessData] = useState<{
+    shopName: string;
+    ownerName: string;
+    email: string;
+    shopId: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -111,29 +117,42 @@ export const PlatformAdminDashboard: React.FC = () => {
     setIsProcessing(true);
     setActionErrorMessage(null);
     try {
-      const res = await TailorService.adminCreateShopAndOwner(
-        {
-          name: approvingRequest.shopName,
-          phone: approvingRequest.phone,
-          city: approvingRequest.city,
-        },
-        {
-          fullName: approvingRequest.ownerName,
+      if (approvingRequest.uid) {
+        // Modern flow: User already has real Firebase Auth UID and chosen password
+        const res = await TailorService.adminApproveShopRequest(approvingRequest);
+        setApprovedSuccessData({
+          shopName: res.shop.name,
+          ownerName: res.owner.fullName,
+          email: res.owner.email,
+          shopId: res.shop.shopId,
+        });
+        setActionSuccessMessage(`تم قبول الطلب وتفعيل متجر "${res.shop.name}" بنجاح!`);
+      } else {
+        // Fallback for legacy requests without pre-registered UID
+        const res = await TailorService.adminCreateShopAndOwner(
+          {
+            name: approvingRequest.shopName,
+            phone: approvingRequest.phone,
+            city: approvingRequest.city,
+          },
+          {
+            fullName: approvingRequest.ownerName,
+            email: approvingRequest.email,
+            phone: approvingRequest.phone,
+            initialPassword: initialPassword || 'Thobi@2026',
+          },
+          approvingRequest.requestId
+        );
+
+        setGeneratedCredentials({
+          shopName: res.shop.name,
           email: approvingRequest.email,
-          phone: approvingRequest.phone,
-          initialPassword: initialPassword,
-        },
-        approvingRequest.requestId
-      );
+          password: initialPassword || 'Thobi@2026',
+          shopId: res.shop.shopId,
+        });
+        setActionSuccessMessage(`تمت الموافقة وتفعيل متجر "${res.shop.name}" بنجاح!`);
+      }
 
-      setGeneratedCredentials({
-        shopName: res.shop.name,
-        email: approvingRequest.email,
-        password: initialPassword,
-        shopId: res.shop.shopId,
-      });
-
-      setActionSuccessMessage(`تمت الموافقة وتفعيل متجر "${res.shop.name}" بنجاح!`);
       await loadPlatformData();
     } catch (err: any) {
       setActionErrorMessage(err.message || 'فشل اعتماد الطلب وتفعيل المتجر');
@@ -674,7 +693,7 @@ export const PlatformAdminDashboard: React.FC = () => {
                                 className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-md"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>موافقة وإنشاء</span>
+                                <span>قبول الطلب</span>
                               </button>
                               <button
                                 onClick={() => handleOpenRejectModal(req)}
@@ -1118,14 +1137,14 @@ export const PlatformAdminDashboard: React.FC = () => {
         )}
       </main>
 
-      {/* APPROVAL & CREDENTIALS MODAL */}
-      {approvingRequest && !generatedCredentials && (
+      {/* APPROVAL MODAL */}
+      {approvingRequest && !generatedCredentials && !approvedSuccessData && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-white text-base flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <span>اعتماد طلب المحل وإنشاء الحساب</span>
+                <span>اعتماد وقبول طلب المتجر</span>
               </h3>
               <button onClick={() => setApprovingRequest(null)} className="text-slate-400 hover:text-white">
                 ✕
@@ -1146,31 +1165,47 @@ export const PlatformAdminDashboard: React.FC = () => {
                 <span dir="ltr" className="text-white font-mono">{approvingRequest.email}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-slate-400">رقم الجوال:</span>
+                <span dir="ltr" className="text-white font-mono">{approvingRequest.phone}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-400">المدينة:</span>
                 <span className="text-white">{approvingRequest.city}</span>
               </div>
             </div>
 
             <form onSubmit={handleApproveRequest} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  كلمة المرور المؤقتة لصاحب المحل:
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-                  <input
-                    type="text"
-                    required
-                    dir="ltr"
-                    value={initialPassword}
-                    onChange={(e) => setInitialPassword(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white font-mono text-left"
-                  />
+              {approvingRequest.uid ? (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-xl space-y-1">
+                  <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>تسجيل مباشر وآمن</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-400/90 leading-relaxed">
+                    قام صاحب المتجر بتحديد كلمة المرور الخاصة به مسبقاً. بمجرد الضغط على تأكيد الاعتماد، سيتم إنشاء المتجر وربط الحساب فوراً دون حاجة لمعرفة كلمة المرور أو إرسال بيانات مؤقتة.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  سيتم إنشاء حساب Firebase Auth بهذا البريد وكلمة المرور وتفعيل المتجر.
-                </p>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    كلمة المرور المؤقتة لصاحب المحل:
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      dir="ltr"
+                      value={initialPassword}
+                      onChange={(e) => setInitialPassword(e.target.value)}
+                      className="w-full pr-10 pl-4 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white font-mono text-left"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    طلب قديم: سيتم إنشاء حساب بكلمة المرور المؤقتة هذه.
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -1185,7 +1220,7 @@ export const PlatformAdminDashboard: React.FC = () => {
                   disabled={isProcessing}
                   className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black rounded-xl shadow-md disabled:opacity-50"
                 >
-                  {isProcessing ? 'جاري التفعيل...' : 'تأكيد الموافقة والتفعيل'}
+                  {isProcessing ? 'جاري التفعيل...' : 'تأكيد القبول وتفعيل المتجر'}
                 </button>
               </div>
             </form>
@@ -1193,7 +1228,57 @@ export const PlatformAdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* GENERATED CREDENTIALS SUCCESS MODAL */}
+      {/* APPROVED SUCCESS MODAL (FOR UID-BASED REQUESTS) */}
+      {approvedSuccessData && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="w-full max-w-md bg-slate-900 border border-emerald-800/80 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 mx-auto">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="font-black text-white text-base">تم قبول وتفعيل المتجر بنجاح!</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                تم تفعيل بيئة العمل السحابية وربط حساب المالك بنجاح. يمكن للمالك الآن تسجيل الدخول مباشرة بنفس البريد الإلكتروني وكلمة المرور التي اختارها.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-right space-y-2 text-xs font-medium">
+              <div className="flex justify-between">
+                <span className="text-slate-400">اسم المتجر:</span>
+                <span className="text-white font-bold">{approvedSuccessData.shopName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">صاحب المتجر:</span>
+                <span className="text-white font-bold">{approvedSuccessData.ownerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">البريد الإلكتروني:</span>
+                <span dir="ltr" className="text-emerald-400 font-mono">{approvedSuccessData.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">معرف المتجر (Shop ID):</span>
+                <span className="text-slate-300 font-mono text-[10px]">{approvedSuccessData.shopId}</span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setApprovedSuccessData(null);
+                  setApprovingRequest(null);
+                }}
+                className="w-full py-2.5 bg-[#1A365D] hover:bg-[#204373] text-white text-xs font-black rounded-xl shadow-md transition-all"
+              >
+                تم والعودة لقائمة الطلبات
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GENERATED CREDENTIALS SUCCESS MODAL (LEGACY FALLBACK) */}
       {generatedCredentials && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="w-full max-w-md bg-slate-900 border border-emerald-800/80 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 text-center">
