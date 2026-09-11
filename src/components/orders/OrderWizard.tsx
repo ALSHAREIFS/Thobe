@@ -13,7 +13,13 @@ import {
 import { MeasurementForm } from '../measurements/MeasurementForm';
 import { VisualOptionSelector } from '../visuals/VisualOptionSelector';
 import { FabricSelector } from './FabricSelector';
+import { WizardBottomNavigation } from './WizardBottomNavigation';
 import { getUnitLabel, convertMeasurementData } from '../../utils/measurementConversion';
+import {
+  sanitizeMeasurementData,
+  formatMeasurementDisplay,
+  getMeasurementNumeralPreference,
+} from '../../utils/measurementNormalization';
 import { TailorService } from '../../services/firebaseService';
 import {
   User,
@@ -329,10 +335,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
+    const cleanMeasurements = sanitizeMeasurementData(measurements);
+
     try {
       // 1. Save measurement record for the customer
       await TailorService.saveMeasurement(shopId, selectedCustomer.customerId, {
-        measurements,
+        measurements: cleanMeasurements,
         notes: measurementNotes,
         measuredBy: currentUser.userId,
         measuredByName: currentUser.fullName,
@@ -347,7 +355,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
         const updated = await updateOrder(initialEditingOrder.orderId, {
           garmentType: tailoringDetails.garmentType,
           quantity,
-          measurements,
+          measurements: cleanMeasurements,
           measurementUnit,
           tailoringDetails,
           pricing: {
@@ -376,7 +384,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           status: 'NEW',
           garmentType: tailoringDetails.garmentType,
           quantity,
-          measurements,
+          measurements: cleanMeasurements,
           measurementUnit,
           tailoringDetails,
           pricing: {
@@ -417,6 +425,70 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       (c?.phone || '').includes(searchQuery)
   );
 
+  const handlePrevStep = () => {
+    if (step > 1) {
+      setStep((s) => s - 1);
+    }
+  };
+
+  const handleNextStep = () => {
+    if (step === 1 && !selectedCustomer) {
+      showToast('يرجى اختيار العميل أولاً للمتابعة', 'error');
+      return;
+    }
+    if (step === 2) {
+      const check = validateMeasurements(measurements, measurementUnit);
+      if (!check.isValid) {
+        const errorMsg = [
+          check.missingFields.length > 0 ? `المقاسات الأساسية: ${check.missingFields.join('، ')}` : '',
+          check.invalidFields && check.invalidFields.length > 0 ? `قيم غير صحيحة: ${check.invalidFields.join('، ')}` : '',
+        ].filter(Boolean).join(' | ');
+        showToast(`يرجى استكمال وتصحيح المقاسات: ${errorMsg}`, 'error');
+        return;
+      }
+    }
+    if (step === 3) {
+      const tailoringCheck = validateTailoringDetails(tailoringDetails);
+      if (!tailoringCheck.isValid) {
+        showToast(
+          `يرجى إكمال خيارات التفصيل الأساسية قبل المتابعة: ${tailoringCheck.missingFields.join('، ')}`,
+          'error'
+        );
+        return;
+      }
+    }
+    if (step === 4) {
+      if (isTotalLessThanNetPaid) {
+        showToast(
+          `لا يمكن المتابعة: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+          'error'
+        );
+        return;
+      }
+      const fabricPricingCheck = validateFabricAndPricing({
+        fabric: tailoringDetails.fabric,
+        unitPrice,
+        quantity,
+        paidAmount,
+        paymentMethod,
+        deliveryDate,
+      });
+      if (!fabricPricingCheck.isValid) {
+        showToast(
+          `يرجى استكمال بيانات القماش والتسعير قبل المتابعة: ${fabricPricingCheck.missingFields.join('، ')}`,
+          'error'
+        );
+        return;
+      }
+    }
+    setStep((s) => s + 1);
+  };
+
+  // Scroll to top on step change so user starts at the top of the next screen
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
   const stepsHeader = [
     { num: 1, title: 'العميل', icon: User },
     { num: 2, title: 'المقاسات', icon: Ruler },
@@ -445,76 +517,27 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
               >
                 إلغاء
               </button>
               {step > 1 && (
                 <button
                   type="button"
-                  onClick={() => setStep((s) => s - 1)}
-                  className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                  onClick={handlePrevStep}
+                  className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                  aria-label="الرجوع للخطوة السابقة"
                 >
                   <ArrowRight className="w-4 h-4" />
-                  السابق
+                  الرجوع
                 </button>
               )}
               {step < 5 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (step === 1 && !selectedCustomer) {
-                      showToast('يرجى اختيار العميل أولاً للمتابعة', 'error');
-                      return;
-                    }
-                    if (step === 2) {
-                      const check = validateMeasurements(measurements, measurementUnit);
-                      if (!check.isValid) {
-                        const errorMsg = [
-                          check.missingFields.length > 0 ? `المقاسات الأساسية: ${check.missingFields.join('، ')}` : '',
-                          check.invalidFields && check.invalidFields.length > 0 ? `قيم غير صحيحة: ${check.invalidFields.join('، ')}` : '',
-                        ].filter(Boolean).join(' | ');
-                        showToast(`يرجى استكمال وتصحيح المقاسات: ${errorMsg}`, 'error');
-                        return;
-                      }
-                    }
-                    if (step === 3) {
-                      const tailoringCheck = validateTailoringDetails(tailoringDetails);
-                      if (!tailoringCheck.isValid) {
-                        showToast(
-                          `يرجى إكمال خيارات التفصيل الأساسية قبل المتابعة: ${tailoringCheck.missingFields.join('، ')}`,
-                          'error'
-                        );
-                        return;
-                      }
-                    }
-                    if (step === 4) {
-                      if (isTotalLessThanNetPaid) {
-                        showToast(
-                          `لا يمكن المتابعة: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
-                          'error'
-                        );
-                        return;
-                      }
-                      const fabricPricingCheck = validateFabricAndPricing({
-                        fabric: tailoringDetails.fabric,
-                        unitPrice,
-                        quantity,
-                        paidAmount,
-                        paymentMethod,
-                        deliveryDate,
-                      });
-                      if (!fabricPricingCheck.isValid) {
-                        showToast(
-                          `يرجى استكمال بيانات القماش والتسعير قبل المتابعة: ${fabricPricingCheck.missingFields.join('، ')}`,
-                          'error'
-                        );
-                        return;
-                      }
-                    }
-                    setStep((s) => s + 1);
-                  }}
+                  onClick={handleNextStep}
                   className="flex items-center gap-1 px-5 py-1.5 text-xs font-bold text-white bg-[#1A365D] hover:bg-[#152C4D] rounded-xl shadow-xs transition-all cursor-pointer"
+                  aria-label="المتابعة للخطوة التالية"
                 >
                   التالي
                   <ArrowLeft className="w-4 h-4" />
@@ -522,12 +545,17 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               ) : (
                 <button
                   type="button"
-                  disabled={isSubmitting || isSavedSuccessfully}
+                  disabled={isSubmitting || isSavedSuccessfully || isTotalLessThanNetPaid}
                   onClick={handleFinalSubmit}
                   className="flex items-center gap-1.5 px-6 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label={isEditingMode ? 'حفظ وتحديث بيانات الطلب' : 'اعتماد وحفظ الطلب وطباعة الباركود'}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ الطلب وطباعة الباركود'}
+                  {isSubmitting
+                    ? 'جاري الحفظ...'
+                    : isEditingMode
+                    ? 'حفظ وتحديث بيانات الطلب'
+                    : 'حفظ الطلب وطباعة الباركود'}
                 </button>
               )}
             </div>
@@ -1057,30 +1085,66 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   الوحدة: {getUnitLabel(measurementUnit)}
                 </span>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الطول الكامل</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.length} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.length, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الكتف</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.shoulder} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.shoulder, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الصدر</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.chest} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.chest, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
+                </div>
+                <div className="p-2 bg-amber-50/70 rounded-lg border border-amber-200">
+                  <div className="text-[10px] text-amber-800 font-bold">الخصر / البطن</div>
+                  <div className="font-black text-sm text-amber-950 mt-0.5">
+                    {formatMeasurementDisplay(measurements.waist, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
+                </div>
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="text-[10px] text-slate-400">الأرداف / الوسط</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.hips, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">طول الكم</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.sleeveLength} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الرقبة</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.neck} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.neck, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="text-[10px] text-slate-400">الكبك / المعصم</div>
-                  <div className="font-black text-sm text-slate-900 mt-0.5">{measurements.wrist} {getUnitLabel(measurementUnit)}</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.wrist, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
+                </div>
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="text-[10px] text-slate-400">وسع الداير</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
+                </div>
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="text-[10px] text-slate-400">الجيرو / الإبط</div>
+                  <div className="font-black text-sm text-slate-900 mt-0.5">
+                    {formatMeasurementDisplay(measurements.armhole, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(measurementUnit)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1169,9 +1233,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               </div>
             )}
 
-            {/* Financials & Save Buttons */}
-            <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-6 text-center sm:text-right">
+            {/* Financials Summary */}
+            <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-6 text-center sm:text-right flex-wrap">
                 <div>
                   <span className="text-xs text-slate-500 block">إجمالي المبلغ:</span>
                   <span className="font-black text-lg text-slate-900">{totalAmount} ر.س</span>
@@ -1190,23 +1254,25 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <span className="font-black text-lg text-[#1A365D]">{remainingAmount} ر.س</span>
                 </div>
               </div>
-
-              <button
-                type="button"
-                disabled={isSubmitting || isSavedSuccessfully || isTotalLessThanNetPaid}
-                onClick={handleFinalSubmit}
-                className="w-full sm:w-auto px-8 py-3 bg-[#1A365D] hover:bg-[#152C4D] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                {isSubmitting
-                  ? 'جاري الحفظ في قاعدة البيانات...'
-                  : isEditingMode
-                  ? 'حفظ وتحديث بيانات الطلب'
-                  : 'اعتماد وحفظ الطلب'}
-              </button>
             </div>
           </div>
         )}
+
+        {/* Shared Bottom Navigation for ALL Wizard Steps */}
+        <WizardBottomNavigation
+          step={step}
+          totalSteps={5}
+          stepTitle={stepsHeader.find((s) => s.num === step)?.title}
+          canGoBack={step > 1}
+          onPrev={handlePrevStep}
+          onNext={handleNextStep}
+          onCancel={onCancel}
+          onSubmit={handleFinalSubmit}
+          isSubmitting={isSubmitting}
+          isSavedSuccessfully={isSavedSuccessfully}
+          isEditingMode={isEditingMode}
+          isTotalLessThanNetPaid={isTotalLessThanNetPaid}
+        />
       </div>
     </div>
   );

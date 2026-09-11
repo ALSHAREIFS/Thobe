@@ -1,11 +1,13 @@
 import React from 'react';
 import { MeasurementData } from '../../types';
+import { NumeralSystem, formatMeasurementDisplay } from '../../utils/measurementNormalization';
 
 interface ThobeMeasurementFigureProps {
   measurements: MeasurementData;
   selectedField: keyof MeasurementData | null;
   onSelectField: (field: keyof MeasurementData) => void;
   unit?: string;
+  numeralSystem?: NumeralSystem;
   readOnly?: boolean;
 }
 
@@ -14,7 +16,13 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
   selectedField,
   onSelectField,
   unit = 'سم',
+  numeralSystem = 'latin' as NumeralSystem,
 }) => {
+  const activeNumeralSystem: NumeralSystem = numeralSystem === 'arabic' ? 'arabic' : 'latin';
+  const formatVal = (val: number | undefined | null) => {
+    if (!val || val <= 0) return '--';
+    return formatMeasurementDisplay(val, { numeralSystem: activeNumeralSystem, allowEmpty: false });
+  };
   return (
     <div className="relative w-full max-w-sm mx-auto flex flex-col items-center bg-gradient-to-b from-[#0F172A] via-[#1E293B] to-[#0F172A] p-4 rounded-2xl border border-slate-800 text-slate-100 shadow-xl select-none">
       <div className="w-full flex items-center justify-between mb-3 px-2">
@@ -169,7 +177,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الرقبة: {measurements.neck || '--'} {unit}
+          الرقبة: {formatVal(measurements.neck)} {unit}
         </button>
 
         {/* 2. Shoulder / الكتف */}
@@ -182,7 +190,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الكتف: {measurements.shoulder || '--'} {unit}
+          الكتف: {formatVal(measurements.shoulder)} {unit}
         </button>
 
         {/* 3. Armhole / الجيرو */}
@@ -195,7 +203,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/80 text-slate-300 hover:bg-blue-700 hover:text-white border border-slate-700'
           }`}
         >
-          الجيرو: {measurements.armhole || '--'}
+          الجيرو: {formatVal(measurements.armhole)}
         </button>
 
         {/* 4. Sleeve Length / طول الكم */}
@@ -208,7 +216,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          طول الكم: {measurements.sleeveLength || '--'} {unit}
+          طول الكم: {formatVal(measurements.sleeveLength)} {unit}
         </button>
 
         {/* 5. Wrist / الكبك / المعصم */}
@@ -221,7 +229,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الكبك: {measurements.wrist || '--'}
+          الكبك: {formatVal(measurements.wrist)}
         </button>
 
         {/* 6. Chest / الصدر */}
@@ -234,7 +242,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الصدر: {measurements.chest || '--'} {unit}
+          الصدر: {formatVal(measurements.chest)} {unit}
         </button>
 
         {/* 7. Waist / الخصر */}
@@ -247,7 +255,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الخصر: {measurements.waist || '--'} {unit}
+          الخصر: {formatVal(measurements.waist)} {unit}
         </button>
 
         {/* 8. Hips / الوسط */}
@@ -260,7 +268,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          الوسط/الأرداف: {measurements.hips || '--'}
+          الوسط/الأرداف: {formatVal(measurements.hips)}
         </button>
 
         {/* 9. Full Length / طول الثوب */}
@@ -273,7 +281,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-blue-300 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          طول الثوب: {measurements.length || '--'} {unit}
+          طول الثوب: {formatVal(measurements.length)} {unit}
         </button>
 
         {/* 10. Bottom Width / وسع الداير */}
@@ -286,7 +294,7 @@ export const ThobeMeasurementFigure: React.FC<ThobeMeasurementFigureProps> = ({
               : 'bg-slate-800/90 text-slate-200 hover:bg-blue-600 hover:text-white border border-slate-700'
           }`}
         >
-          وسع أسفل الثوب (الداير): {measurements.bottomWidth || '--'} {unit}
+          وسع أسفل الثوب (الداير): {formatVal(measurements.bottomWidth)} {unit}
         </button>
       </div>
 

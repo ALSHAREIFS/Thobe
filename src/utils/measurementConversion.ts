@@ -116,3 +116,6 @@ export function getFieldLimitsForUnit(
   };
 }
 
+// Re-export normalization and formatting layer
+export * from './measurementNormalization';
+

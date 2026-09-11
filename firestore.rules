@@ -111,6 +111,14 @@ service cloud.firestore {
       );
     }
 
+    function orderExists(shopId, orderId) {
+      return exists(/databases/$(database)/documents/shops/$(shopId)/orders/$(orderId));
+    }
+
+    function getOrderData(shopId, orderId) {
+      return get(/databases/$(database)/documents/shops/$(shopId)/orders/$(orderId)).data;
+    }
+
     // =========================================================
     // 2. PLATFORM ADMINS DIRECTORY (Read-Only Reference for Owner)
     // =========================================================
@@ -438,7 +446,18 @@ service cloud.firestore {
                          request.resource.data.amount > 0 &&
                          request.resource.data.shopId == shopId &&
                          request.resource.data.orderId is string &&
-                         request.resource.data.createdAt is string;
+                         request.resource.data.createdAt is string &&
+                         (
+                           !orderExists(shopId, request.resource.data.orderId) ||
+                           (
+                             getOrderData(shopId, request.resource.data.orderId).status != 'CANCELLED' &&
+                             (
+                               !('pricing' in getOrderData(shopId, request.resource.data.orderId)) ||
+                               !('remainingAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) ||
+                               request.resource.data.amount <= getOrderData(shopId, request.resource.data.orderId).pricing.remainingAmount
+                             )
+                           )
+                         );
         // Strictly immutable for financial integrity
         allow update: if false;
         // Payments cannot be deleted by employees or shops, reserved to Super Admin
@@ -456,7 +475,18 @@ service cloud.firestore {
                          request.resource.data.amount > 0 &&
                          request.resource.data.orderId is string &&
                          request.resource.data.shopId == shopId &&
-                         request.resource.data.createdAt is string;
+                         request.resource.data.createdAt is string &&
+                         (
+                           !orderExists(shopId, request.resource.data.orderId) ||
+                           (
+                             ('pricing' in getOrderData(shopId, request.resource.data.orderId)) &&
+                             ('paidAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) &&
+                             request.resource.data.amount <= (
+                               getOrderData(shopId, request.resource.data.orderId).pricing.paidAmount -
+                               (('refundedAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) ? getOrderData(shopId, request.resource.data.orderId).pricing.refundedAmount : 0)
+                             )
+                           )
+                         );
 
         // Strictly immutable for financial audit trail
         allow update: if false;

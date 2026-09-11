@@ -39,6 +39,11 @@ import {
   EmployeeDomainError,
 } from '../types';
 import { validateMeasurements } from '../utils/presets';
+import {
+  calculateOrderFinancials,
+  getLinkedPayments,
+  getLinkedRefunds,
+} from '../utils/financialCalculations';
 
 // Helper to format Firestore errors clearly
 export function parseFirebaseError(err: any): string {
@@ -69,6 +74,69 @@ export function parseFirebaseError(err: any): string {
     return 'بيانات الدخول غير صحيحة، يرجى التأكد من البريد وكلمة المرور';
   }
   return msg;
+}
+
+/**
+ * Query all linked payment and refund documents for an order from Firestore.
+ * Handles orderId and orderNumber permutations with canonical deduplication.
+ */
+export async function getLinkedOrderDocs(
+  shopId: string,
+  orderId: string,
+  orderNumber?: string
+): Promise<{ payments: Payment[]; refunds: Refund[] }> {
+  if (!shopId || !orderId) {
+    return { payments: [], refunds: [] };
+  }
+
+  const paymentQueries = [
+    query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', orderId)),
+  ];
+  const refundQueries = [
+    query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', orderId)),
+  ];
+
+  if (orderNumber && orderNumber !== orderId) {
+    paymentQueries.push(
+      query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderNumber)),
+      query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', orderNumber))
+    );
+    refundQueries.push(
+      query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderNumber)),
+      query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', orderNumber))
+    );
+  }
+
+  paymentQueries.push(
+    query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderId))
+  );
+  refundQueries.push(
+    query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderId))
+  );
+
+  const [paymentSnaps, refundSnaps] = await Promise.all([
+    Promise.all(paymentQueries.map((q) => getDocs(q).catch(() => ({ docs: [] })))),
+    Promise.all(refundQueries.map((q) => getDocs(q).catch(() => ({ docs: [] })))),
+  ]);
+
+  const rawPayments: Payment[] = [];
+  for (const snap of paymentSnaps) {
+    for (const docSnap of snap.docs) {
+      rawPayments.push({ ...(docSnap.data() as Payment), paymentId: docSnap.id });
+    }
+  }
+
+  const rawRefunds: Refund[] = [];
+  for (const snap of refundSnaps) {
+    for (const docSnap of snap.docs) {
+      rawRefunds.push({ ...(docSnap.data() as Refund), refundId: docSnap.id });
+    }
+  }
+
+  return {
+    payments: getLinkedPayments({ orderId, orderNumber }, rawPayments),
+    refunds: getLinkedRefunds({ orderId, orderNumber }, rawRefunds),
+  };
 }
 
 // Tailor Multi-Tenant SaaS Service Layer
@@ -1368,6 +1436,17 @@ export const TailorService = {
         updatedAt: now,
       };
 
+      if (newStatus === 'CANCELLED') {
+        updatePayload['pricing.remainingAmount'] = 0;
+      } else if (order.status === 'CANCELLED') {
+        // Restoring from CANCELLED to active: recalculate remaining based on totalAmount and netPaid
+        const total = Number(order.pricing?.totalAmount) || 0;
+        const paid = Number(order.pricing?.paidAmount) || 0;
+        const refunded = Number((order.pricing as any)?.refundedAmount) || 0;
+        const netPaid = Math.max(0, paid - refunded);
+        updatePayload['pricing.remainingAmount'] = Math.max(0, total - netPaid);
+      }
+
       if (newStatus === 'DELIVERED') {
         updatePayload.actualDeliveryDate = now;
       }
@@ -1392,14 +1471,13 @@ export const TailorService = {
         const orderSnap = await getDoc(doc(db, `shops/${shopId}/orders`, orderId));
         if (orderSnap.exists()) {
           const currentOrder = orderSnap.data() as Order;
-          const [paymentsSnap, refundsSnap] = await Promise.all([
-            getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', orderId))),
-            getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', orderId))),
-          ]);
-          const grossPaid = paymentsSnap.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
-          const totalRefunded = refundsSnap.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
-          const netPaidFromDocs = Math.max(0, grossPaid - totalRefunded);
-          const actualNetPaid = grossPaid > 0 ? netPaidFromDocs : Number(currentOrder.pricing?.paidAmount || 0);
+          const ledgerDocs = await getLinkedOrderDocs(shopId, orderId, currentOrder.orderNumber);
+          const financials = calculateOrderFinancials(
+            currentOrder,
+            ledgerDocs.payments,
+            ledgerDocs.refunds
+          );
+          const actualNetPaid = financials.netPaid;
 
           if (actualNetPaid > 0 && data.pricing.totalAmount < actualNetPaid) {
             throw new Error(
@@ -1441,29 +1519,20 @@ export const TailorService = {
     try {
       const orderRef = doc(db, `shops/${shopId}/orders`, orderId);
       const orderSnap = await getDoc(orderRef);
+      let orderNumber: string | undefined;
       if (orderSnap.exists()) {
         const orderData = orderSnap.data() as Order;
+        orderNumber = orderData.orderNumber;
         if (orderData.financialLocked === true) {
           throw new Error(
             'لا يمكن حذف طلب يحتوي على معاملات مالية مسجلة ومقفلة. يمكنك إلغاء الطلب بدلًا من ذلك.'
           );
         }
-        const paid = Number(orderData.pricing?.paidAmount || 0);
-        const refunded = Number((orderData.pricing as any)?.refundedAmount || 0);
-        if (paid > 0 || refunded > 0) {
-          throw new Error(
-            'لا يمكن حذف طلب يحتوي على معاملات مالية. يمكنك إلغاء الطلب بدلًا من ذلك.'
-          );
-        }
       }
 
-      // Check if any payment or refund documents exist in Firestore referencing this orderId
-      const [paymentsSnap, refundsSnap] = await Promise.all([
-        getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', orderId))),
-        getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', orderId))),
-      ]);
-
-      if (!paymentsSnap.empty || !refundsSnap.empty) {
+      // Check if any payment or refund documents exist in Firestore referencing this order
+      const ledgerDocs = await getLinkedOrderDocs(shopId, orderId, orderNumber);
+      if (ledgerDocs.payments.length > 0 || ledgerDocs.refunds.length > 0) {
         throw new Error(
           'لا يمكن حذف طلب يحتوي على معاملات مالية. يمكنك إلغاء الطلب بدلًا من ذلك.'
         );
@@ -1504,31 +1573,13 @@ export const TailorService = {
     }
   },
 
-  async getPayments(shopId: string, orderId?: string): Promise<Payment[]> {
+  async getPayments(shopId: string, orderId?: string, orderNumber?: string): Promise<Payment[]> {
     try {
       if (orderId) {
-        try {
-          const q = query(
-            collection(db, `shops/${shopId}/payments`),
-            where('orderId', '==', orderId),
-            orderBy('createdAt', 'desc')
-          );
-          const snap = await getDocs(q);
-          return snap.docs.map((d) => d.data() as Payment);
-        } catch (queryErr: any) {
-          if (queryErr?.code === 'failed-precondition' || queryErr?.message?.includes('index')) {
-            console.warn('Payments index not ready, using memory sort fallback:', queryErr.message);
-            const fallbackQ = query(
-              collection(db, `shops/${shopId}/payments`),
-              where('orderId', '==', orderId)
-            );
-            const snap = await getDocs(fallbackQ);
-            return snap.docs
-              .map((d) => d.data() as Payment)
-              .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          }
-          throw queryErr;
-        }
+        const { payments } = await getLinkedOrderDocs(shopId, orderId, orderNumber);
+        return payments.sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
       }
 
       const q = query(
@@ -1536,7 +1587,7 @@ export const TailorService = {
         orderBy('createdAt', 'desc')
       );
       const snap = await getDocs(q);
-      return snap.docs.map((d) => d.data() as Payment);
+      return snap.docs.map((d) => ({ ...(d.data() as Payment), paymentId: d.id }));
     } catch (err: any) {
       console.error('Error getting payments:', err);
       throw new Error(parseFirebaseError(err));
@@ -1547,8 +1598,10 @@ export const TailorService = {
    * Atomic, Concurrency-Safe Payment Creation:
    * 1. Validates payment amount > 0.
    * 2. Checks order document atomically via transaction.
-   * 3. Prevents overpayments: data.amount cannot exceed remainingAmount.
-   * 4. Updates order counters atomically.
+   * 3. Prevents payments on CANCELLED orders.
+   * 4. Prevents overpayments: data.amount cannot exceed remainingAmount.
+   * 5. Uses canonical calculateOrderFinancials for authoritative ledger validation.
+   * 6. Updates order counters atomically.
    */
   async addPayment(
     shopId: string,
@@ -1586,57 +1639,30 @@ export const TailorService = {
           throw new Error('لا يمكن إضافة دفعة مالية لطلب ملغي.');
         }
 
-        // 2. Fetch linked payment documents and refund documents to compute verified ledger
-        const [paysById, refsById] = await Promise.all([
-          getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', data.orderId))),
-          getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', data.orderId))),
-        ]);
+        // 2. Fetch linked ledger documents
+        const ledgerDocs = await getLinkedOrderDocs(shopId, data.orderId, orderData.orderNumber);
 
-        const payDocsMap = new Map<string, any>();
-        paysById.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+        // 3. Compute canonical ledger financials
+        const financials = calculateOrderFinancials(
+          orderData,
+          ledgerDocs.payments,
+          ledgerDocs.refunds
+        );
 
-        const refDocsMap = new Map<string, any>();
-        refsById.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
-
-        if (orderData.orderNumber && orderData.orderNumber !== data.orderId) {
-          const [paysByNum, refsByNum] = await Promise.all([
-            getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderData.orderNumber))),
-            getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderData.orderNumber))),
-          ]);
-          paysByNum.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
-          refsByNum.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
-        }
-
-        let grossPaid = 0;
-        payDocsMap.forEach((pData) => {
-          grossPaid += Number(pData?.amount) || 0;
-        });
-
-        let grossRefunded = 0;
-        refDocsMap.forEach((rData) => {
-          grossRefunded += Number(rData?.amount) || 0;
-        });
-
-        grossPaid = Math.round(grossPaid * 100) / 100;
-        grossRefunded = Math.round(grossRefunded * 100) / 100;
-        const totalAmount = Math.round((Number(orderData.pricing?.totalAmount) || 0) * 100) / 100;
-        const netPaid = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
-        const remainingAmount = Math.max(0, Math.round((totalAmount - netPaid) * 100) / 100);
-
-        if (data.amount > remainingAmount) {
+        if (data.amount > financials.activeRemaining) {
           throw new Error(
-            `المبلغ المدخل (${data.amount} ر.س) أكبر من المبلغ المتبقي الفعلي على الطلب (${remainingAmount} ر.س).`
+            `المبلغ المدخل (${data.amount} ر.س) أكبر من المبلغ المتبقي الفعلي على الطلب (${financials.activeRemaining} ر.س).`
           );
         }
 
-        const newGrossPaid = Math.round((grossPaid + data.amount) * 100) / 100;
-        const newNetPaid = Math.max(0, Math.round((newGrossPaid - grossRefunded) * 100) / 100);
-        const newRemaining = Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
+        const newGrossPaid = Math.round((financials.grossPaid + data.amount) * 100) / 100;
+        const newNetPaid = Math.max(0, Math.round((newGrossPaid - financials.grossRefunded) * 100) / 100);
+        const newRemaining = Math.max(0, Math.round((financials.totalAmount - newNetPaid) * 100) / 100);
 
-        // 3. Create the immutable payment document
+        // 4. Create the immutable payment document
         transaction.set(payRef, newPayment);
 
-        // 4. Update order pricing counters atomically
+        // 5. Update order pricing counters atomically (syncing derived compatibility fields)
         transaction.update(orderRef, {
           'pricing.paidAmount': newGrossPaid,
           'pricing.remainingAmount': newRemaining,
@@ -1680,31 +1706,13 @@ export const TailorService = {
     }
   },
 
-  async getRefunds(shopId: string, orderId?: string): Promise<Refund[]> {
+  async getRefunds(shopId: string, orderId?: string, orderNumber?: string): Promise<Refund[]> {
     try {
       if (orderId) {
-        try {
-          const q = query(
-            collection(db, `shops/${shopId}/refunds`),
-            where('orderId', '==', orderId),
-            orderBy('createdAt', 'desc')
-          );
-          const snap = await getDocs(q);
-          return snap.docs.map((d) => d.data() as Refund);
-        } catch (queryErr: any) {
-          if (queryErr?.code === 'failed-precondition' || queryErr?.message?.includes('index')) {
-            console.warn('Refunds index not ready, using memory sort fallback:', queryErr.message);
-            const fallbackQ = query(
-              collection(db, `shops/${shopId}/refunds`),
-              where('orderId', '==', orderId)
-            );
-            const snap = await getDocs(fallbackQ);
-            return snap.docs
-              .map((d) => d.data() as Refund)
-              .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          }
-          throw queryErr;
-        }
+        const { refunds } = await getLinkedOrderDocs(shopId, orderId, orderNumber);
+        return refunds.sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
       }
 
       const q = query(
@@ -1712,7 +1720,7 @@ export const TailorService = {
         orderBy('createdAt', 'desc')
       );
       const snap = await getDocs(q);
-      return snap.docs.map((d) => d.data() as Refund);
+      return snap.docs.map((d) => ({ ...(d.data() as Refund), refundId: d.id }));
     } catch (err: any) {
       console.error('Error getting refunds:', err);
       throw new Error(parseFirebaseError(err));
@@ -1724,8 +1732,9 @@ export const TailorService = {
    * Uses runTransaction when order exists to guarantee that:
    * 1. The order exists and belongs to the shop and customer.
    * 2. refund amount is strictly > 0.
-   * 3. Total refunded amount can NEVER exceed paidAmount, even with concurrent submissions.
-   * 4. Also supports refunding unlinked/legacy payments safely.
+   * 3. Total refunded amount can NEVER exceed grossPaid from linked ledger documents.
+   * 4. Uses canonical calculateOrderFinancials for authoritative validation.
+   * 5. Updates order counters atomically.
    */
   async addRefund(
     shopId: string,
@@ -1781,40 +1790,17 @@ export const TailorService = {
             throw new Error('معرف المتجر غير متطابق مع بيانات الطلب.');
           }
 
-          // Fetch linked payment documents and refund documents to compute verified ledger
-          const [paysById, refsById] = await Promise.all([
-            getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', data.orderId))),
-            getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', data.orderId))),
-          ]);
+          // Fetch linked ledger docs using canonical deduplication
+          const ledgerDocs = await getLinkedOrderDocs(shopId, data.orderId, orderData.orderNumber);
 
-          const payDocsMap = new Map<string, any>();
-          paysById.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
+          // Compute canonical ledger financials
+          const financials = calculateOrderFinancials(
+            orderData,
+            ledgerDocs.payments,
+            ledgerDocs.refunds
+          );
 
-          const refDocsMap = new Map<string, any>();
-          refsById.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
-
-          if (orderData.orderNumber && orderData.orderNumber !== data.orderId) {
-            const [paysByNum, refsByNum] = await Promise.all([
-              getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderNumber', '==', orderData.orderNumber))),
-              getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderNumber', '==', orderData.orderNumber))),
-            ]);
-            paysByNum.docs.forEach((d) => payDocsMap.set(d.id, d.data()));
-            refsByNum.docs.forEach((d) => refDocsMap.set(d.id, d.data()));
-          }
-
-          let grossPaid = 0;
-          payDocsMap.forEach((pData) => {
-            grossPaid += Number(pData?.amount) || 0;
-          });
-
-          let grossRefunded = 0;
-          refDocsMap.forEach((rData) => {
-            grossRefunded += Number(rData?.amount) || 0;
-          });
-
-          grossPaid = Math.round(grossPaid * 100) / 100;
-          grossRefunded = Math.round(grossRefunded * 100) / 100;
-          const maxRefundable = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
+          const maxRefundable = financials.maxRefundable;
 
           if (data.amount > maxRefundable) {
             throw new Error(
@@ -1822,17 +1808,20 @@ export const TailorService = {
             );
           }
 
-          const newRefundedCounter = Math.round((grossRefunded + data.amount) * 100) / 100;
-          const totalAmount = Math.round((Number(orderData.pricing?.totalAmount) || 0) * 100) / 100;
-          const newNetPaid = Math.max(0, Math.round((grossPaid - newRefundedCounter) * 100) / 100);
-          const newRemaining = orderData.status === 'CANCELLED' ? 0 : Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
+          const newGrossRefunded = Math.round((financials.grossRefunded + data.amount) * 100) / 100;
+          const newNetPaid = Math.max(0, Math.round((financials.grossPaid - newGrossRefunded) * 100) / 100);
+          const newRemaining =
+            orderData.status === 'CANCELLED'
+              ? 0
+              : Math.max(0, Math.round((financials.totalAmount - newNetPaid) * 100) / 100);
 
           // 1. Create immutable refund document
           transaction.set(refundDocRef, newRefund);
 
-          // 2. Update order refunded amount and remaining counters atomically
+          // 2. Update order pricing counters atomically (syncing derived compatibility fields)
           transaction.update(orderRef, {
-            'pricing.refundedAmount': newRefundedCounter,
+            'pricing.paidAmount': financials.grossPaid,
+            'pricing.refundedAmount': newGrossRefunded,
             'pricing.remainingAmount': newRemaining,
             financialLocked: true,
             updatedAt: now,
@@ -1840,19 +1829,18 @@ export const TailorService = {
         });
       } else {
         // Unlinked / Legacy payment case (e.g. REC-9124 where order document was previously deleted):
-        // Verify payments and refunds for this orderId to avoid over-refunding
-        const [paymentsSnap, refundsSnap] = await Promise.all([
-          getDocs(query(collection(db, `shops/${shopId}/payments`), where('orderId', '==', data.orderId))),
-          getDocs(query(collection(db, `shops/${shopId}/refunds`), where('orderId', '==', data.orderId))),
-        ]);
+        const ledgerDocs = await getLinkedOrderDocs(shopId, data.orderId, data.orderNumber);
+        const grossPaid = Math.round(
+          ledgerDocs.payments.reduce((acc, d) => acc + (Number(d.amount) || 0), 0) * 100
+        ) / 100;
+        const grossRefunded = Math.round(
+          ledgerDocs.refunds.reduce((acc, d) => acc + (Number(d.amount) || 0), 0) * 100
+        ) / 100;
+        const maxRefundable = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
 
-        const totalPayments = paymentsSnap.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
-        const totalRefunds = refundsSnap.docs.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
-        const maxRefundable = Math.max(0, totalPayments - totalRefunds);
-
-        if (totalPayments > 0 && data.amount > maxRefundable) {
+        if (data.amount > maxRefundable) {
           throw new Error(
-            `المبلغ المطلوب استرداده (${data.amount} ر.س) يتجاوز الرصيد القابل للاسترداد (${maxRefundable} ر.س).`
+            `المبلغ المطلوب استرداده (${data.amount} ر.س) يتجاوز الحد الأقصى المتاح للاسترداد لهذا الطلب (${maxRefundable} ر.س).`
           );
         }
 

@@ -19,6 +19,8 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
+  MessageCircle,
+  Headphones,
 } from 'lucide-react';
 
 export const AuthPage: React.FC = () => {
@@ -584,6 +586,76 @@ export const AuthPage: React.FC = () => {
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Contact Support Section */}
+      <div
+        id="contact-support-section"
+        className="w-full max-w-md lg:max-w-xs mt-6 lg:mt-0 lg:fixed lg:bottom-6 lg:left-6 z-20"
+      >
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-stone-200/90 p-4 shadow-xl shadow-stone-200/60 transition-all hover:shadow-2xl">
+          {/* Section Header */}
+          <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b border-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-[#1A365D]/10 text-[#1A365D] flex items-center justify-center shrink-0">
+              <Headphones className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-stone-900 leading-none mb-1">تواصل مع الدعم</h3>
+              <p className="text-[11px] text-stone-500 font-medium">فريق الدعم الفني جاهز لمساعدتك</p>
+            </div>
+          </div>
+
+          {/* Contact Options */}
+          <div className="space-y-2">
+            {/* WhatsApp Link */}
+            <a
+              id="support-whatsapp-btn"
+              href="https://wa.me/966508177328"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/70 text-emerald-900 transition-all group hover:scale-[1.01]"
+              title="تواصل معنا عبر واتساب"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <MessageCircle className="w-4 h-4" />
+                </div>
+                <div className="text-right min-w-0">
+                  <div className="text-[10px] font-bold text-emerald-800">واتساب</div>
+                  <div className="text-xs font-mono font-bold tracking-wider text-emerald-950" dir="ltr">
+                    0508177328
+                  </div>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-600 group-hover:text-emerald-800 shrink-0 mr-2">
+                مراسلة
+              </span>
+            </a>
+
+            {/* Email Link */}
+            <a
+              id="support-email-btn"
+              href="mailto:abdallahshareif11al@gmail.com"
+              className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100/90 border border-stone-200/80 text-stone-900 transition-all group hover:scale-[1.01]"
+              title="تواصل معنا عبر البريد الإلكتروني"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-[#1A365D] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="text-right min-w-0">
+                  <div className="text-[10px] font-bold text-stone-600">البريد الإلكتروني</div>
+                  <div className="text-[11px] font-mono font-bold text-stone-900 truncate" dir="ltr">
+                    abdallahshareif11al@gmail.com
+                  </div>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold text-[#1A365D] group-hover:text-blue-900 shrink-0 mr-2">
+                إرسال
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

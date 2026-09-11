@@ -4,6 +4,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
 import { getUnitLabel } from '../../utils/measurementConversion';
+import { formatMeasurementDisplay, getMeasurementNumeralPreference } from '../../utils/measurementNormalization';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
 import {
   X,
@@ -354,35 +355,51 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                       <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 text-center text-xs">
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الطول</span>
-                          <span className="font-black text-amber-900 text-sm">{m.length}</span>
+                          <span className="font-black text-amber-900 text-sm">
+                            {formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الكتف</span>
-                          <span className="font-black text-stone-900 text-sm">{m.shoulder}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الصدر</span>
-                          <span className="font-black text-stone-900 text-sm">{m.chest}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">طول الكم</span>
-                          <span className="font-black text-stone-900 text-sm">{m.sleeveLength}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الرقبة</span>
-                          <span className="font-black text-stone-900 text-sm">{m.neck}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الكبك</span>
-                          <span className="font-black text-stone-900 text-sm">{m.wrist}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
                           <span className="text-[10px] text-stone-400 block">الداير</span>
-                          <span className="font-black text-stone-900 text-sm">{m.bottomWidth}</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                         <div className="bg-white p-2 rounded-xl border border-stone-200">
-                          <span className="text-[10px] text-stone-400 block">الخصر</span>
-                          <span className="font-black text-stone-900 text-sm">{m.waist}</span>
+                          <span className="text-[10px] text-amber-800 font-bold block">الخصر</span>
+                          <span className="font-black text-stone-900 text-sm">
+                            {formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })}
+                          </span>
                         </div>
                       </div>
 

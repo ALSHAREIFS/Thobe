@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { MeasurementData, MeasurementUnit } from '../../types';
 import { MEASUREMENT_FIELDS_CONFIG } from '../../utils/presets';
 import { getFieldLimitsForUnit } from '../../utils/measurementConversion';
+import {
+  NumeralSystem,
+  getMeasurementNumeralPreference,
+  setMeasurementNumeralPreference,
+  parseMeasurementNumber,
+} from '../../utils/measurementNormalization';
 import { ThobeMeasurementFigure } from '../visuals/ThobeMeasurementFigure';
-import { Ruler, Sparkles, Plus, Minus } from 'lucide-react';
+import { MeasurementFieldInput } from './MeasurementFieldInput';
+import { Ruler, Sparkles, Languages } from 'lucide-react';
 
 interface MeasurementFormProps {
   measurements: MeasurementData;
@@ -24,17 +31,19 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
 }) => {
   const [selectedField, setSelectedField] = useState<keyof MeasurementData | null>('length');
   const [activeTab, setActiveTab] = useState<'all' | 'main' | 'upper' | 'sleeves' | 'details'>('all');
+  const [numeralSystem, setNumeralSystem] = useState<NumeralSystem>(() => getMeasurementNumeralPreference());
 
-  const handleValueChange = (key: keyof MeasurementData, val: number) => {
-    onChange({
-      ...measurements,
-      [key]: Math.max(0, parseFloat(val.toFixed(2)) || 0),
-    });
+  const handleToggleNumeralSystem = (newSystem: NumeralSystem) => {
+    setNumeralSystem(newSystem);
+    setMeasurementNumeralPreference(newSystem);
   };
 
-  const handleStep = (key: keyof MeasurementData, delta: number) => {
-    const current = measurements[key] || 0;
-    handleValueChange(key, current + delta);
+  const handleValueChange = (key: keyof MeasurementData, val: number) => {
+    const canonical = typeof val === 'number' ? Math.max(0, Math.round((val + Number.EPSILON) * 100) / 100) : parseMeasurementNumber(val);
+    onChange({
+      ...measurements,
+      [key]: canonical,
+    });
   };
 
   // Quick Preset sizes (52 to 62)
@@ -65,7 +74,7 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Bar with Unit & Preset Size shortcuts */}
+      {/* Top Bar with Unit, Numeral Display & Preset Size shortcuts */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center">
@@ -77,8 +86,9 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
           </div>
         </div>
 
-        {/* Quick Sizes & Unit Toggle */}
+        {/* Quick Sizes, Numeral Format & Unit Toggle */}
         <div className="flex items-center flex-wrap gap-2">
+          {/* Quick Presets */}
           <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
             <span className="text-[11px] font-bold text-stone-500 px-1.5 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-600" /> مقاسات جاهزة:
@@ -88,19 +98,48 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
                 key={s}
                 type="button"
                 onClick={() => applySizePreset(s)}
-                className="px-2 py-1 text-xs font-bold bg-white text-stone-700 hover:bg-amber-700 hover:text-white rounded-lg shadow-2xs transition-all"
+                className="px-2 py-1 text-xs font-bold bg-white text-stone-700 hover:bg-amber-700 hover:text-white rounded-lg shadow-2xs transition-all cursor-pointer"
               >
-                {s}
+                {numeralSystem === 'arabic' ? (s === 54 ? '٥٤' : s === 56 ? '٥٦' : s === 58 ? '٥٨' : s === 60 ? '٦٠' : '٦٢') : s}
               </button>
             ))}
           </div>
 
+          {/* Numeral System Toggle: Latin vs Arabic digits */}
+          <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
+            <button
+              type="button"
+              onClick={() => handleToggleNumeralSystem('latin')}
+              title="عرض الأرقام بالإنجليزية (67)"
+              className={`px-2 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                numeralSystem === 'latin'
+                  ? 'bg-amber-800 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              123
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleNumeralSystem('arabic')}
+              title="عرض الأرقام بالعربية (٦٧)"
+              className={`px-2 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                numeralSystem === 'arabic'
+                  ? 'bg-amber-800 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              ١٢٣
+            </button>
+          </div>
+
+          {/* Unit Toggle: CM vs INCH */}
           {onUnitChange && (
             <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
               <button
                 type="button"
                 onClick={() => onUnitChange('cm')}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   unit === 'cm' ? 'bg-amber-800 text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
@@ -109,7 +148,7 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
               <button
                 type="button"
                 onClick={() => onUnitChange('inch')}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   unit === 'inch' ? 'bg-amber-800 text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
@@ -142,6 +181,7 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
             selectedField={selectedField}
             onSelectField={(f) => setSelectedField(f)}
             unit={unit === 'cm' ? 'سم' : 'إنش'}
+            numeralSystem={numeralSystem}
           />
         </div>
 
@@ -160,7 +200,7 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   activeTab === tab.id
                     ? 'bg-amber-800 text-white shadow-xs'
                     : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
@@ -175,84 +215,23 @@ export const MeasurementForm: React.FC<MeasurementFormProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filteredFields.map((field) => {
               const currentVal = measurements[field.key];
-              const hasValue = currentVal !== undefined && currentVal !== null && currentVal > 0;
               const isSelected = selectedField === field.key;
               const limits = getFieldLimitsForUnit(field.min, field.max, field.step, field.defaultVal, unit);
 
               return (
-                <div
+                <MeasurementFieldInput
                   key={field.key}
-                  onClick={() => setSelectedField(field.key)}
-                  className={`p-3 rounded-xl border-2 transition-all bg-white cursor-pointer ${
-                    isSelected
-                      ? 'border-amber-700 ring-2 ring-amber-700/10 shadow-xs'
-                      : hasValue
-                      ? 'border-stone-200 hover:border-stone-300'
-                      : 'border-dashed border-stone-300 bg-stone-50/50 hover:border-stone-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          isSelected
-                            ? 'bg-amber-600'
-                            : hasValue
-                            ? 'bg-emerald-500'
-                            : 'bg-stone-300'
-                        }`}
-                      />
-                      {field.label}
-                    </label>
-                    <span className="text-[11px] font-semibold text-stone-400">
-                      {unit === 'cm' ? 'سم' : 'إنش'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const baseVal = (measurements[field.key] || limits.defaultVal);
-                        handleValueChange(field.key, Math.max(0, baseVal - limits.step));
-                      }}
-                      className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-
-                    <input
-                      type="number"
-                      step={limits.step}
-                      min={limits.min}
-                      max={limits.max}
-                      value={hasValue ? currentVal : ''}
-                      placeholder={`--`}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={() => setSelectedField(field.key)}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        handleValueChange(field.key, raw === '' ? 0 : (parseFloat(raw) || 0));
-                      }}
-                      className="w-full text-center font-black text-lg py-1 px-2 bg-stone-50 rounded-lg border border-stone-200 text-stone-900 focus:bg-white focus:border-amber-700 focus:outline-none placeholder:text-stone-300 placeholder:font-normal"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const baseVal = (measurements[field.key] || limits.defaultVal - limits.step);
-                        handleValueChange(field.key, baseVal + limits.step);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="text-[11px] text-stone-500 mt-1 line-clamp-1">{field.description}</div>
-                </div>
+                  label={field.label}
+                  fieldKey={field.key}
+                  value={currentVal}
+                  unit={unit}
+                  limits={limits}
+                  numeralSystem={numeralSystem}
+                  isSelected={isSelected}
+                  description={field.description}
+                  onChange={(val) => handleValueChange(field.key, val)}
+                  onSelect={() => setSelectedField(field.key)}
+                />
               );
             })}
           </div>

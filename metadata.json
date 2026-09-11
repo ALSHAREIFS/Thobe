@@ -1,6 +1,6 @@
 {
   "name": "ثوبي",
   "description": "دفتر تفصيل ثياب رجالية إلكتروني سحابي متكامل - نظام SaaS لإدارة محلات الخياطة، المقاسات، والتفاصيل البصرية للثياب في السعودية",
-  "requestFramePermissions": ["camera"],
+  "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

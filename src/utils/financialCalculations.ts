@@ -1,5 +1,12 @@
 import { Order, Payment, Refund } from '../types';
 
+export type OrderFinancialStatus =
+  | 'UNPAID'
+  | 'PARTIALLY_PAID'
+  | 'FULLY_PAID'
+  | 'CANCELLED_SETTLED'
+  | 'CANCELLED_LIABILITY';
+
 export interface OrderFinancials {
   /** The total cost of the order (pricing.totalAmount) */
   totalAmount: number;
@@ -17,9 +24,15 @@ export interface OrderFinancials {
   unrefundedLiability: number;
   /** Maximum refundable amount: equal to netPaid */
   maxRefundable: number;
+  /** Whether a refund can be executed (maxRefundable > 0) */
+  canRefund: boolean;
   /** Whether the order is cancelled */
   isCancelled: boolean;
-  /** Whether there is a discrepancy between verified ledger and legacy/cached fields */
+  /** Canonical financial status code */
+  financialStatus: OrderFinancialStatus;
+  /** Descriptive Arabic status label */
+  statusLabelAr: string;
+  /** Whether there is a severe discrepancy between verified ledger and legacy fields */
   hasFinancialMismatch: boolean;
   /** Human-readable explanation of financial mismatch if present */
   mismatchReason?: string;
@@ -40,8 +53,12 @@ export function getLinkedPayments(
   const map = new Map<string, Payment>();
   for (const p of payments) {
     if (!p) continue;
-    const matchesId = p.orderId && p.orderId === order.orderId;
-    const matchesNumber = p.orderNumber && order.orderNumber && p.orderNumber === order.orderNumber;
+    const matchesId =
+      (p.orderId && p.orderId === order.orderId) ||
+      (order.orderNumber && p.orderId === order.orderNumber);
+    const matchesNumber =
+      (p.orderNumber && p.orderNumber === order.orderId) ||
+      (order.orderNumber && p.orderNumber && p.orderNumber === order.orderNumber);
     if (matchesId || matchesNumber) {
       const key = p.paymentId || `${p.orderId}_${p.receiptNumber || Math.random()}`;
       if (!map.has(key)) {
@@ -63,8 +80,12 @@ export function getLinkedRefunds(
   const map = new Map<string, Refund>();
   for (const r of refunds) {
     if (!r) continue;
-    const matchesId = r.orderId && r.orderId === order.orderId;
-    const matchesNumber = r.orderNumber && order.orderNumber && r.orderNumber === order.orderNumber;
+    const matchesId =
+      (r.orderId && r.orderId === order.orderId) ||
+      (order.orderNumber && r.orderId === order.orderNumber);
+    const matchesNumber =
+      (r.orderNumber && r.orderNumber === order.orderId) ||
+      (order.orderNumber && r.orderNumber && r.orderNumber === order.orderNumber);
     if (matchesId || matchesNumber) {
       const key = r.refundId || `${r.orderId}_${Math.random()}`;
       if (!map.has(key)) {
@@ -81,8 +102,11 @@ export function getLinkedRefunds(
  * - grossPaid = sum(valid linked Payment documents)
  * - grossRefunded = sum(valid linked Refund documents)
  * - netPaid = max(0, grossPaid - grossRefunded)
- * - remaining = max(0, order.totalAmount - netPaid)
+ * - maxRefundable = max(0, netPaid)
  * - For CANCELLED: activeRemaining = 0, unrefundedLiability = netPaid
+ *
+ * NOTE: Stale cached pricing fields on the order document are NEVER authoritative.
+ * The immutable payment and refund collections are the sole source of financial truth.
  */
 export function calculateOrderFinancials(
   order: Pick<Order, 'orderId' | 'status'> & {
@@ -100,10 +124,11 @@ export function calculateOrderFinancials(
   const isCancelled = order.status === 'CANCELLED';
   const totalAmount = Math.round((Number(order.pricing?.totalAmount) || 0) * 100) / 100;
 
-  // Link payments and refunds
+  // Link payments and refunds strictly using canonical document matcher
   const linkedPayments = getLinkedPayments(order, payments);
   const linkedRefunds = getLinkedRefunds(order, refunds);
 
+  // Authoritative truth: Canonical Linked Ledger documents ONLY
   const grossPaid = Math.round(
     linkedPayments.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0) * 100
   ) / 100;
@@ -114,33 +139,43 @@ export function calculateOrderFinancials(
 
   const netPaid = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
   const maxRefundable = netPaid;
+  const canRefund = maxRefundable > 0;
 
   const remaining = Math.max(0, Math.round((totalAmount - netPaid) * 100) / 100);
   const activeRemaining = isCancelled ? 0 : remaining;
   const unrefundedLiability = isCancelled ? netPaid : 0;
 
-  // Comparison with legacy cached fields inside order.pricing
-  const legacyPaid = Math.round((Number(order.pricing?.paidAmount) || 0) * 100) / 100;
-  const legacyRemaining = Math.round((Number(order.pricing?.remainingAmount) || 0) * 100) / 100;
+  // Derive Canonical Financial Status
+  let financialStatus: OrderFinancialStatus;
+  let statusLabelAr: string;
 
-  const paidMismatch = Math.abs(legacyPaid - grossPaid) > 0.01;
-  const remainingMismatch = !isCancelled && Math.abs(legacyRemaining - remaining) > 0.01;
-  const cancelledRemainingMismatch = isCancelled && legacyRemaining > 0;
-
-  const hasFinancialMismatch = paidMismatch || remainingMismatch || cancelledRemainingMismatch;
-
-  let mismatchReason: string | undefined;
-  if (hasFinancialMismatch) {
-    if (paidMismatch && grossPaid === 0 && legacyPaid > 0) {
-      mismatchReason = `يوجد رصيد مسجل قديماً (${legacyPaid} ر.س) بدون سندات قبض مطابقة في السجل.`;
-    } else if (paidMismatch) {
-      mismatchReason = `سجل المقبوضات الفعلي (${grossPaid} ر.س) يختلف عن الرصيد المسجل بالطلب (${legacyPaid} ر.س).`;
-    } else if (remainingMismatch) {
-      mismatchReason = `المتبقي المحسوب (${remaining} ر.س) يختلف عن المتبقي المسجل بالطلب (${legacyRemaining} ر.س).`;
-    } else if (cancelledRemainingMismatch) {
-      mismatchReason = `طلب ملغي ما زال مسجلاً بمتبقي (${legacyRemaining} ر.س).`;
+  if (isCancelled) {
+    if (unrefundedLiability > 0) {
+      financialStatus = 'CANCELLED_LIABILITY';
+      statusLabelAr = `ملغي (مستحق للعميل: ${unrefundedLiability} ر.س)`;
+    } else {
+      financialStatus = 'CANCELLED_SETTLED';
+      statusLabelAr = 'ملغي (تمت التسوية بالكامل)';
+    }
+  } else {
+    if (netPaid === 0) {
+      financialStatus = 'UNPAID';
+      statusLabelAr = grossPaid > 0 ? 'مسترد بالكامل (غير مدفوع)' : 'غير مدفوع';
+    } else if (remaining === 0) {
+      financialStatus = 'FULLY_PAID';
+      statusLabelAr = 'مسدد بالكامل ✓';
+    } else {
+      financialStatus = 'PARTIALLY_PAID';
+      statusLabelAr = `عربون (${netPaid} ر.س) / متبقي (${remaining} ر.س)`;
     }
   }
+
+  // Safe integrity check: only flag if actual corruption exists (e.g. negative net or over-refunded)
+  const isCorrupted = grossRefunded > grossPaid;
+  const hasFinancialMismatch = isCorrupted;
+  const mismatchReason = isCorrupted
+    ? `إجمالي المسترد (${grossRefunded} ر.س) أكبر من إجمالي المقبوض (${grossPaid} ر.س).`
+    : undefined;
 
   return {
     totalAmount,
@@ -151,7 +186,10 @@ export function calculateOrderFinancials(
     activeRemaining,
     unrefundedLiability,
     maxRefundable,
+    canRefund,
     isCancelled,
+    financialStatus,
+    statusLabelAr,
     hasFinancialMismatch,
     mismatchReason,
     paymentsCount: linkedPayments.length,

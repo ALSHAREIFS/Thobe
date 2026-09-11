@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 import { TailorService } from '../../services/firebaseService';
 import { getUnitLabel } from '../../utils/measurementConversion';
+import { formatMeasurementDisplay, getMeasurementNumeralPreference } from '../../utils/measurementNormalization';
 import { Printer, X, Scissors, Phone, MapPin, Calendar, User, ShieldCheck, Check, ArrowRight, Receipt, CreditCard } from 'lucide-react';
 import {
   CollarRegularIcon,
@@ -272,16 +273,16 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             </thead>
             <tbody>
               <tr className="font-black text-sm text-stone-950 bg-white">
-                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950 font-black text-base">{m.length}</td>
-                <td className="border border-stone-300 py-2">{m.shoulder}</td>
-                <td className="border border-stone-300 py-2">{m.chest}</td>
-                <td className="border border-stone-300 py-2">{m.waist}</td>
-                <td className="border border-stone-300 py-2">{m.hips}</td>
-                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950">{m.sleeveLength}</td>
-                <td className="border border-stone-300 py-2">{m.wrist}</td>
-                <td className="border border-stone-300 py-2">{m.neck}</td>
-                <td className="border border-stone-300 py-2">{m.bottomWidth}</td>
-                <td className="border border-stone-300 py-2">{m.armhole}</td>
+                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950 font-black text-base">{formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.hips, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950">{formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.armhole, { numeralSystem: getMeasurementNumeralPreference() })}</td>
               </tr>
             </tbody>
           </table>

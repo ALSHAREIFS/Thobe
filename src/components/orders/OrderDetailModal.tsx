@@ -4,7 +4,7 @@ import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
-import { calculateOrderFinancials } from '../../utils/financialCalculations';
+import { calculateOrderFinancials, getLinkedPayments, getLinkedRefunds } from '../../utils/financialCalculations';
 import {
   X,
   Printer,
@@ -28,6 +28,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
+import { formatMeasurementDisplay, getMeasurementNumeralPreference } from '../../utils/measurementNormalization';
 import { getUnitLabel } from '../../utils/measurementConversion';
 import {
   CollarRegularIcon,
@@ -78,10 +79,17 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [refundError, setRefundError] = useState<string | null>(null);
   const [isSubmittingRefund, setIsSubmittingRefund] = useState(false);
   const isSubmittingRefundLock = useRef<boolean>(false);
+  const refundFormRef = useRef<HTMLFormElement | null>(null);
+  const refundAmountInputRef = useRef<HTMLInputElement | null>(null);
+  const modalBodyRef = useRef<HTMLDivElement | null>(null);
+  const [refundScrollTrigger, setRefundScrollTrigger] = useState(0);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteBlockedModal, setShowDeleteBlockedModal] = useState(false);
   const [showCancelWarningModal, setShowCancelWarningModal] = useState(false);
+  const [showCancelUnpaidModal, setShowCancelUnpaidModal] = useState(false);
+  const [cancelRefundOption, setCancelRefundOption] = useState<'refund_now' | 'refund_later'>('refund_later');
+  const [cancelRefundMethod, setCancelRefundMethod] = useState<'cash' | 'card' | 'bank_transfer' | 'stc_pay'>('cash');
   const [isCancelling, setIsCancelling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [directPayments, setDirectPayments] = useState<Payment[]>([]);
@@ -125,8 +133,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
     let isMounted = true;
     Promise.all([
-      TailorService.getPayments(shopId, order.orderId).catch(() => []),
-      TailorService.getRefunds(shopId, order.orderId).catch(() => []),
+      TailorService.getPayments(shopId, order.orderId, order.orderNumber).catch(() => []),
+      TailorService.getRefunds(shopId, order.orderId, order.orderNumber).catch(() => []),
     ]).then(([pays, refs]) => {
       if (isMounted) {
         setDirectPayments(pays);
@@ -137,43 +145,21 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [currentShop?.shopId, order.shopId, order.orderId]);
+  }, [currentShop?.shopId, order.shopId, order.orderId, order.orderNumber]);
 
-  // Combine real-time context payments and direct Firestore query with deduplication
-  const allCandidatePayments = [
+  // Combine real-time context payments and direct Firestore query with canonical linking and deduplication
+  const orderPayments = getLinkedPayments(order, [
     ...directPayments,
-    ...(contextPayments || []).filter(
-      (pay) => pay.orderId === order.orderId || (pay.orderNumber && pay.orderNumber === order.orderNumber)
-    ),
-  ];
-
-  const orderPaymentsMap = new Map<string, Payment>();
-  allCandidatePayments.forEach((pay) => {
-    if (pay.paymentId) {
-      orderPaymentsMap.set(pay.paymentId, pay);
-    }
-  });
-
-  const orderPayments = Array.from(orderPaymentsMap.values()).sort(
+    ...(contextPayments || []),
+  ]).sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
-  // Combine real-time context refunds and direct Firestore query with deduplication
-  const allCandidateRefunds = [
+  // Combine real-time context refunds and direct Firestore query with canonical linking and deduplication
+  const orderRefunds = getLinkedRefunds(order, [
     ...directRefunds,
-    ...(contextRefunds || []).filter(
-      (ref) => ref.orderId === order.orderId || (ref.orderNumber && ref.orderNumber === order.orderNumber)
-    ),
-  ];
-
-  const orderRefundsMap = new Map<string, Refund>();
-  allCandidateRefunds.forEach((ref) => {
-    if (ref.refundId) {
-      orderRefundsMap.set(ref.refundId, ref);
-    }
-  });
-
-  const orderRefunds = Array.from(orderRefundsMap.values()).sort(
+    ...(contextRefunds || []),
+  ]).sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
@@ -208,7 +194,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (newStatus === 'CANCELLED') {
       if (grossPaid > 0 || orderPayments.length > 0) {
+        setCancelRefundOption('refund_later');
         setShowCancelWarningModal(true);
+        return;
+      } else {
+        setShowCancelUnpaidModal(true);
         return;
       }
     }
@@ -220,11 +210,45 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     if (isCancelling) return;
     setIsCancelling(true);
     try {
-      await updateOrderStatus(order.orderId, 'CANCELLED', statusNote || 'إلغاء الطلب مع وجود دفعات مسجلة سابقة');
+      const shopId = currentShop?.shopId || order.shopId;
+      if (cancelRefundOption === 'refund_now' && netPaid > 0) {
+        await addRefund({
+          orderId: order.orderId,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          amount: netPaid,
+          paymentMethod: cancelRefundMethod,
+          reason: 'إلغاء الطلب وتسوية الحساب بالكامل للعميل',
+          recordedBy: currentUser?.fullName || 'المستخدم',
+          recordedByUid: currentUser?.userId || '',
+        });
+        const updatedRefs = await TailorService.getRefunds(shopId, order.orderId);
+        setDirectRefunds(updatedRefs);
+      }
+      await updateOrderStatus(
+        order.orderId,
+        'CANCELLED',
+        statusNote || (cancelRefundOption === 'refund_now' ? 'إلغاء الطلب وتسوية الرصيد بالكامل' : 'إلغاء الطلب وبانتظار تسليم المبلغ للعميل')
+      );
       setStatusNote('');
       setShowCancelWarningModal(false);
     } catch (err: any) {
       console.error('Error cancelling order:', err);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleConfirmCancelUnpaid = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await updateOrderStatus(order.orderId, 'CANCELLED', statusNote || 'إلغاء الطلب');
+      setStatusNote('');
+      setShowCancelUnpaidModal(false);
+    } catch (err: any) {
+      console.error('Error cancelling unpaid order:', err);
     } finally {
       setIsCancelling(false);
     }
@@ -291,8 +315,36 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setRefundReason('');
     setRefundError(null);
     isSubmittingRefundLock.current = false;
+    setShowPaymentInput(false);
     setShowRefundInput(true);
+    setRefundScrollTrigger((prev) => prev + 1);
   };
+
+  // Auto-scroll to refund panel with smooth animation when opened
+  useEffect(() => {
+    if (showRefundInput && refundFormRef.current) {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const behavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
+
+      const rafId = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (refundFormRef.current) {
+            refundFormRef.current.scrollIntoView({
+              behavior,
+              block: 'start',
+            });
+            if (refundAmountInputRef.current) {
+              refundAmountInputRef.current.focus({ preventScroll: true });
+            }
+          }
+        });
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [showRefundInput, refundScrollTrigger]);
 
   const handleAddRefund = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -493,7 +545,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         )}
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div ref={modalBodyRef} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Order Info & Delivery Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
             <div>
@@ -527,30 +579,66 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 الوحدة: {getUnitLabel(order?.measurementUnit)}
               </span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
               <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200">
                 <span className="text-[10px] text-amber-900 font-bold block">الطول الكامل</span>
-                <span className="font-black text-base text-amber-950">{m.length} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-base text-amber-950">
+                  {formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الكتف</span>
-                <span className="font-black text-sm text-stone-900">{m.shoulder} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الصدر</span>
-                <span className="font-black text-sm text-stone-900">{m.chest} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
+              </div>
+              <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200">
+                <span className="text-[10px] text-amber-800 font-bold block">الخصر / البطن</span>
+                <span className="font-black text-sm text-amber-950">
+                  {formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
+              </div>
+              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                <span className="text-[10px] text-stone-400 block">الأرداف / الوسط</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.hips, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">طول الكم</span>
-                <span className="font-black text-sm text-stone-900">{m.sleeveLength} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الرقبة</span>
-                <span className="font-black text-sm text-stone-900">{m.neck} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                 <span className="text-[10px] text-stone-400 block">الكبك</span>
-                <span className="font-black text-sm text-stone-900">{m.wrist} {getUnitLabel(order?.measurementUnit)}</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
+              </div>
+              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                <span className="text-[10px] text-stone-400 block">وسع الداير</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
+              </div>
+              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                <span className="text-[10px] text-stone-400 block">الجيرو / الإبط</span>
+                <span className="font-black text-sm text-stone-900">
+                  {formatMeasurementDisplay(m.armhole, { numeralSystem: getMeasurementNumeralPreference() })} {getUnitLabel(order?.measurementUnit)}
+                </span>
               </div>
             </div>
           </div>
@@ -668,106 +756,141 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             {/* Financial Status Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center">
-              <div className="bg-white p-3 rounded-xl border border-stone-200 flex flex-col justify-center">
-                <span className="text-xs text-stone-400 font-semibold block">إجمالي المبلغ</span>
-                <span className="text-base font-black text-stone-900">{financials.totalAmount} ر.س</span>
-                <span className="text-[10px] text-stone-400 mt-0.5">سعر الطلب</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200 flex flex-col justify-center shadow-2xs">
+                <span className="text-xs text-stone-500 font-semibold block">قيمة الطلب</span>
+                <span className="text-lg font-black text-stone-900 mt-0.5">{financials.totalAmount} ر.س</span>
+                <span className="text-[10px] text-stone-400 mt-0.5">سعر التفصيل الإجمالي</span>
               </div>
               
-              <div className="bg-white p-3 rounded-xl border border-emerald-200 bg-emerald-50/20 flex flex-col justify-center">
-                <span className="text-xs text-emerald-700 font-semibold block">المقبوض</span>
-                <span className="text-base font-black text-emerald-700">{grossPaid} ر.س</span>
+              <div className="bg-white p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 flex flex-col justify-center shadow-2xs">
+                <span className="text-xs text-emerald-700 font-semibold block">المقبوض من العميل</span>
+                <span className="text-lg font-black text-emerald-700 mt-0.5">{grossPaid} ر.س</span>
                 <span className="text-[10px] text-emerald-600 mt-0.5">
                   {orderPayments.length} سند قبض
                 </span>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-rose-200 bg-rose-50/20 flex flex-col justify-center">
-                <span className="text-xs text-rose-700 font-semibold block">المسترد</span>
-                <span className="text-base font-black text-rose-700">{totalRefunds} ر.س</span>
+              <div className="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 flex flex-col justify-center shadow-2xs">
+                <span className="text-xs text-rose-700 font-semibold block">المعاد للعميل</span>
+                <span className="text-lg font-black text-rose-700 mt-0.5">{totalRefunds} ر.س</span>
                 <span className="text-[10px] text-rose-600 mt-0.5">
-                  {orderRefunds.length} سند استرداد
+                  {orderRefunds.length} سند إرجاع
                 </span>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-stone-200 flex flex-col justify-center">
-                <span className="text-xs text-stone-600 font-semibold block">صافي المحصل</span>
-                <span className="text-base font-black text-stone-900">{netPaid} ر.س</span>
-                <span className="text-[10px] text-stone-400 mt-0.5">المتاح للاسترداد: {maxRefundable} ر.س</span>
-              </div>
-
-              <div className={`p-3 rounded-xl border flex flex-col justify-center ${
-                isCancelled
-                  ? 'bg-stone-100/80 border-stone-200 text-stone-500'
-                  : activeRemaining > 0
-                  ? 'bg-amber-50/30 border-amber-200 text-amber-800'
-                  : 'bg-emerald-50/30 border-emerald-200 text-emerald-800'
-              }`}>
-                <span className="text-xs font-semibold block">
-                  {isCancelled ? 'حالة الرصيد' : 'المتبقي للتحصيل'}
-                </span>
-                <span className="text-base font-black">
-                  {isCancelled ? '0 ر.س (ملغي)' : `${activeRemaining} ر.س`}
-                </span>
-                <span className="text-[10px] mt-0.5 opacity-80">
-                  {isCancelled ? 'لا يقبل دفعات' : activeRemaining > 0 ? 'متبقي على العميل' : 'مسدد بالكامل ✓'}
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200 flex flex-col justify-center shadow-2xs">
+                <span className="text-xs text-stone-600 font-semibold block">الصافي لدى المتجر</span>
+                <span className="text-lg font-black text-stone-900 mt-0.5">{netPaid} ر.س</span>
+                <span className="text-[10px] text-stone-500 mt-0.5">
+                  {isCancelled ? 'أمانة مستحقة للعميل' : `المتاح للإرجاع: ${maxRefundable} ر.س`}
                 </span>
               </div>
             </div>
 
-            {/* Cancelled Order with Unrefunded Net Paid Liability Alert */}
-            {isCancelled && unrefundedLiability > 0 && (
-              <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <div>
-                    <span className="font-bold">مبلغ مستحق الإرجاع للعميل: </span>
-                    <span>تم إلغاء هذا الطلب مع وجود رصيد صافٍ محصل قدره <b>{unrefundedLiability} ر.س</b> لم يتم استرداده بالكامل.</span>
+            {/* Clear Financial Status Summary Banner */}
+            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs ${
+              isCancelled
+                ? unrefundedLiability > 0
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                  : 'bg-stone-100 border-stone-300 text-stone-700'
+                : activeRemaining === 0
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                : 'bg-amber-50/60 border-amber-200 text-amber-950'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                {isCancelled ? (
+                  unrefundedLiability > 0 ? (
+                    <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-stone-600 shrink-0" />
+                  )
+                ) : activeRemaining === 0 ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                ) : (
+                  <Receipt className="w-5 h-5 text-amber-700 shrink-0" />
+                )}
+                <div>
+                  <div className="font-black text-sm">
+                    {isCancelled
+                      ? unrefundedLiability > 0
+                        ? `الطلب ملغي — يوجد رصيد مستحق للعميل: ${unrefundedLiability} ر.س`
+                        : 'الطلب ملغي — الحساب المالي مسوّى بالكامل'
+                      : activeRemaining === 0
+                      ? `تم سداد قيمة الطلب بالكامل (${financials.totalAmount} ر.س) ✓`
+                      : `المتبقي للتحصيل عند التسليم: ${activeRemaining} ر.س`}
+                  </div>
+                  <div className="text-[11px] opacity-80 mt-0.5">
+                    {isCancelled
+                      ? unrefundedLiability > 0
+                        ? 'تم إلغاء الطلب والمتبقي على العميل 0 ر.س، والرصيد المسدد محفوظ كأمانة لإرجاعه للعميل نقداً أو شبكة.'
+                        : 'تم إلغاء الطلب ولا توجد أي مبالغ معلقة أو مطالبات مالية على العميل أو المتجر.'
+                      : activeRemaining === 0
+                      ? 'تم تحصيل كافة مستحقات هذا الطلب ولا يوجد أي متبقي.'
+                      : `تم استلام عربون صافٍ قدره ${netPaid} ر.س، وسيتم تحصيل باقي المبلغ عند استلام الثوب.`}
                   </div>
                 </div>
-                {canAccessPayments && maxRefundable > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleOpenRefundModal}
-                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer"
-                  >
-                    تسجيل سند استرداد ({unrefundedLiability} ر.س)
-                  </button>
-                )}
               </div>
-            )}
 
-            {/* Financial Mismatch Audit Warning */}
-            {hasFinancialMismatch && (
-              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">تنبيه تدقيق مالي: </span>
-                  <span>{mismatchReason}</span>
-                  <span className="text-[11px] text-amber-700 block mt-0.5">
-                    (الحسابات المعروضة تستند حصراً إلى سندات القبض والاسترداد الموثقة بالسجل الفعلي).
-                  </span>
-                </div>
-              </div>
-            )}
+              {isCancelled && unrefundedLiability > 0 && canAccessPayments && maxRefundable > 0 && (
+                <button
+                  type="button"
+                  onClick={handleOpenRefundModal}
+                  className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>تسجيل إرجاع المبلغ للعميل ({unrefundedLiability} ر.س)</span>
+                </button>
+              )}
+            </div>
 
             {/* Inline Payment Submission */}
             {showPaymentInput && !isCancelled && activeRemaining > 0 && (
-              <form onSubmit={handleAddPayment} className="p-3 bg-white rounded-xl border border-emerald-300 shadow-xs space-y-3">
+              <form onSubmit={handleAddPayment} className="p-4 bg-white rounded-xl border border-emerald-300 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
                   <h4 className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
                     <Receipt className="w-3.5 h-3.5 text-emerald-700" />
-                    تسجيل دفعة جديدة من العميل
+                    تسجيل سند قبض / استلام دفعة من العميل
                   </h4>
                   <button
                     type="button"
                     onClick={() => setShowPaymentInput(false)}
-                    className="text-stone-400 hover:text-stone-600 text-xs"
+                    className="text-stone-400 hover:text-stone-600 text-xs cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
+                
+                {/* Quick Amount Selection Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-stone-500 font-bold">تعبئة سريعة:</span>
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount(activeRemaining)}
+                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    كامل المتبقي ({activeRemaining} ر.س)
+                  </button>
+                  {activeRemaining > 50 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(Math.round(activeRemaining / 2))}
+                      className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      نصف المتبقي ({Math.round(activeRemaining / 2)} ر.س)
+                    </button>
+                  )}
+                  {activeRemaining > 100 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(100)}
+                      className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      100 ر.س
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-stone-600 block mb-1">المبلغ (ر.س):</label>
@@ -783,7 +906,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-stone-600 block mb-1">طريقة الدفع:</label>
+                    <label className="text-[11px] font-bold text-stone-600 block mb-1">طريقة الاستلام:</label>
                     <select
                       value={payMethod}
                       disabled={isSubmittingPayment}
@@ -808,7 +931,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           <span>جارٍ التسجيل...</span>
                         </>
                       ) : (
-                        'حفظ الدفعة'
+                        'حفظ سند القبض'
                       )}
                     </button>
                   </div>
@@ -818,7 +941,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
             {/* Inline Refund Submission */}
             {showRefundInput && (
-              <form onSubmit={handleAddRefund} className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 shadow-xs space-y-3">
+              <form
+                ref={refundFormRef}
+                onSubmit={handleAddRefund}
+                className="scroll-mt-6 p-4 bg-rose-50/50 rounded-xl border border-rose-200 shadow-xs space-y-3"
+              >
                 <div className="flex items-center justify-between border-b border-rose-200 pb-2">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-rose-100 text-rose-800 flex items-center justify-center font-bold text-xs">
@@ -847,12 +974,34 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </div>
                 )}
 
+                {/* Quick Refund Amount Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-stone-500 font-bold">تعبئة سريعة:</span>
+                  <button
+                    type="button"
+                    onClick={() => setRefundAmount(maxRefundable)}
+                    className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    كامل الرصيد القابل للإرجاع ({maxRefundable} ر.س)
+                  </button>
+                  {maxRefundable > 50 && (
+                    <button
+                      type="button"
+                      onClick={() => setRefundAmount(Math.round(maxRefundable / 2))}
+                      className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      نصف المبلغ ({Math.round(maxRefundable / 2)} ر.س)
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-stone-700 block mb-1">
                       المبلغ المراد إرجاعه (ر.س): <span className="text-rose-600">*</span>
                     </label>
                     <input
+                      ref={refundAmountInputRef}
                       type="number"
                       min="1"
                       max={maxRefundable}
@@ -1034,14 +1183,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </div>
       </div>
 
-      {/* Cancel Order with Payments Warning Modal */}
+      {/* Cancel Order with Payments Modal */}
       {showCancelWarningModal && (
         <div className="fixed inset-0 z-60 overflow-y-auto bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-stone-200 overflow-hidden">
             <div className="p-5 bg-amber-800 text-white flex items-center justify-between">
               <h3 className="font-black text-base flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-300" />
-                تأكيد إلغاء أمر التفصيل
+                تأكيد إلغاء أمر التفصيل #{order.orderNumber}
               </h3>
               <button
                 disabled={isCancelling}
@@ -1053,24 +1202,92 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold space-y-1">
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold space-y-1.5">
                 <div>
                   هذا الطلب يحتوي على دفعات مستلمة قدرها <b className="font-black text-amber-900 text-sm">{grossPaid} ر.س</b>
-                  {totalRefunds > 0 && <span> (تم إرجاع {totalRefunds} ر.س منها)</span>}.
+                  {totalRefunds > 0 && <span> (تم إرجاع {totalRefunds} ر.س منها سابقاً)</span>}.
                 </div>
-                {netPaid > 0 && (
-                  <div className="text-amber-800">
-                    الصافي المسجل لدى المتجر: <b className="font-black">{netPaid} ر.س</b>.
+                {netPaid > 0 ? (
+                  <div className="text-amber-900 bg-amber-100/60 p-2 rounded-xl border border-amber-300">
+                    الصافي المحصل لدى المتجر حالياً: <b className="font-black text-base text-amber-950">{netPaid} ر.س</b>.
+                  </div>
+                ) : (
+                  <div className="text-stone-700">
+                    تمت تسوية كافة المبالغ المستلمة ولا يوجد رصيد معلق.
                   </div>
                 )}
-                <div className="text-[11px] text-amber-700">
-                  إلغاء الطلب لن يحذف دفعات العميل المسجلة تلقائياً. يمكنك إرجاع المبلغ للعميل عبر زر "إرجاع مبلغ ↩".
+                <div className="text-[11px] text-amber-800">
+                  عند تأكيد الإلغاء، سيصبح المبلغ المتبقي للتحصيل من العميل <b>0 ر.س</b> (طلب ملغي).
                 </div>
               </div>
 
-              <p className="text-xs text-stone-600 font-medium leading-relaxed">
-                عند تأكيد الإلغاء، ستتغير حالة الطلب إلى (ملغي)، ويُستبعد من إجمالي مبيعات وطلبات المتجر في لوحة التحكم والتقارير.
-              </p>
+              {netPaid > 0 && canAccessPayments && (
+                <div className="space-y-2.5 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+                  <span className="text-xs font-black text-stone-900 block">
+                    كيف ترغب في تسوية الرصيد المسدد ({netPaid} ر.س)؟
+                  </span>
+                  
+                  <div className="space-y-2 text-xs">
+                    <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      cancelRefundOption === 'refund_now'
+                        ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+                        : 'bg-white border-stone-200 text-stone-700'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="cancelRefundOption"
+                        value="refund_now"
+                        checked={cancelRefundOption === 'refund_now'}
+                        onChange={() => setCancelRefundOption('refund_now')}
+                        className="mt-0.5 text-rose-700 focus:ring-rose-500"
+                      />
+                      <div>
+                        <div className="font-bold">إلغاء الطلب وتسجيل إرجاع كامل المبلغ ({netPaid} ر.س) للعميل الآن</div>
+                        <div className="text-[11px] opacity-80 mt-0.5">
+                          يقوم بإنشاء سند استرداد فوري وتسوية رصيد الطلب بالكامل.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      cancelRefundOption === 'refund_later'
+                        ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                        : 'bg-white border-stone-200 text-stone-700'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="cancelRefundOption"
+                        value="refund_later"
+                        checked={cancelRefundOption === 'refund_later'}
+                        onChange={() => setCancelRefundOption('refund_later')}
+                        className="mt-0.5 text-amber-700 focus:ring-amber-500"
+                      />
+                      <div>
+                        <div className="font-bold">إلغاء الطلب فقط (إبقاء المبلغ كأمانة وتسجيل الإرجاع لاحقاً)</div>
+                        <div className="text-[11px] opacity-80 mt-0.5">
+                          يبقى المبلغ كأمانة مستحقة للعميل في تفاصيل الطلب لحين تسليمه فعلياً.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {cancelRefundOption === 'refund_now' && (
+                    <div className="mt-2 pt-2 border-t border-rose-200 flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-rose-950 shrink-0">طريقة تسليم الإرجاع:</span>
+                      <select
+                        value={cancelRefundMethod}
+                        onChange={(e) => setCancelRefundMethod(e.target.value as any)}
+                        className="w-full px-2.5 py-1 text-xs font-bold bg-white rounded-lg border border-rose-300 text-rose-950"
+                      >
+                        <option value="cash">نقدي (كاش)</option>
+                        <option value="card">عكس عملية مدى / شبكة</option>
+                        <option value="bank_transfer">تحويل بنكي</option>
+                        <option value="stc_pay">STC Pay</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
@@ -1094,6 +1311,62 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </>
                   ) : (
                     <span>تأكيد إلغاء الطلب</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Unpaid Order Confirmation Modal */}
+      {showCancelUnpaidModal && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
+            <div className="p-5 bg-stone-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-base flex items-center gap-2">
+                <Ban className="w-5 h-5 text-stone-300" />
+                تأكيد إلغاء الطلب #{order.orderNumber}
+              </h3>
+              <button
+                disabled={isCancelling}
+                onClick={() => setShowCancelUnpaidModal(false)}
+                className="text-stone-300 hover:text-white disabled:opacity-50 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs font-bold text-stone-800 leading-relaxed">
+                هل أنت متأكد من رغبتك في إلغاء هذا الطلب؟
+              </p>
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-600">
+                لم يتم تسجيل أي دفعات مالية على هذا الطلب. سيتم تعيين حالة الطلب إلى (ملغي) ولن يترتب عليه أي التزامات مالية.
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  disabled={isCancelling}
+                  onClick={() => setShowCancelUnpaidModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  disabled={isCancelling}
+                  onClick={handleConfirmCancelUnpaid}
+                  className="px-6 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  {isCancelling ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>جارٍ الإلغاء...</span>
+                    </>
+                  ) : (
+                    <span>تأكيد الإلغاء</span>
                   )}
                 </button>
               </div>

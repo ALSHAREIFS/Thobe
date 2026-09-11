@@ -157,78 +157,139 @@ export const DashboardView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Active Orders - Orders Permission Required */}
         {canOrders && (
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">الطلبات قيد التفصيل</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1A365D] flex items-center justify-center border border-blue-100">
+          <button
+            type="button"
+            onClick={() => setActiveTab('orders')}
+            className="group text-right bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-[#1A365D]/40 hover:shadow-md active:scale-[0.99] transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1A365D]"
+            aria-label="الانتقال إلى صفحة أوامر التفصيل والطلبات النشطة"
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-bold text-slate-500 group-hover:text-[#1A365D] transition-colors">
+                الطلبات قيد التفصيل
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1A365D] group-hover:bg-[#1A365D] group-hover:text-white flex items-center justify-center border border-blue-100 transition-colors">
                 <ShoppingBag className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-slate-900">{activeOrders.length}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">من إجمالي {orders.length} طلب</div>
+            <div className="mt-3 w-full">
+              <div className="text-2xl font-black text-slate-900 group-hover:text-[#1A365D] transition-colors">
+                {activeOrders.length}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+                <span>من إجمالي {orders.length} طلب</span>
+                <span className="text-[10px] text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  عرض الطلبات ←
+                </span>
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         {/* 2. Ready for Fitting / Pickup - Orders Permission Required */}
         {canOrders && (
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">جاهز للبروفة والاستلام</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center border border-emerald-100">
+          <button
+            type="button"
+            onClick={() => setActiveTab('orders')}
+            className="group text-right bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-emerald-400 hover:shadow-md active:scale-[0.99] transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            aria-label="عرض الطلبات الجاهزة للبروفة والاستلام"
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-bold text-slate-500 group-hover:text-emerald-800 transition-colors">
+                جاهز للبروفة والاستلام
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-800 group-hover:bg-emerald-800 group-hover:text-white flex items-center justify-center border border-emerald-100 transition-colors">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
+            <div className="mt-3 w-full">
               <div className="text-2xl font-black text-emerald-800">{readyOrders.length}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">بانتظار حضور العميل</div>
+              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+                <span>بانتظار حضور العميل</span>
+                <span className="text-[10px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  عرض الطلبات ←
+                </span>
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         {/* 3. Customers Count - Customers or Measurements Permission Required */}
         {(canCustomers || canMeasurements) && (
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">العملاء المسجلين</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-800 flex items-center justify-center border border-indigo-100">
+          <button
+            type="button"
+            onClick={() => setActiveTab('customers')}
+            className="group text-right bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 hover:shadow-md active:scale-[0.99] transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-700"
+            aria-label="عرض سجل العملاء والمقاسات"
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-bold text-slate-500 group-hover:text-indigo-800 transition-colors">
+                العملاء المسجلين
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-800 group-hover:bg-indigo-800 group-hover:text-white flex items-center justify-center border border-indigo-100 transition-colors">
                 <Users className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-slate-900">{customers.length}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">بمقاساتهم وسجلاتهم المحفوظة</div>
+            <div className="mt-3 w-full">
+              <div className="text-2xl font-black text-slate-900 group-hover:text-indigo-800 transition-colors">
+                {customers.length}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+                <span>بمقاساتهم وسجلاتهم المحفوظة</span>
+                <span className="text-[10px] text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  عرض العملاء ←
+                </span>
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         {/* 4. Measurements Guide Card (If user has measurements permission but no orders) */}
         {canMeasurements && !canOrders && (
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">دفتر القياسات والمقاسات</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100">
+          <button
+            type="button"
+            onClick={() => setActiveTab('customers')}
+            className="group text-right bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-400 hover:shadow-md active:scale-[0.99] transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-700"
+            aria-label="الانتقال إلى دفتر القياسات والمقاسات"
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-bold text-slate-500 group-hover:text-amber-800 transition-colors">
+                دفتر القياسات والمقاسات
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-800 group-hover:bg-amber-800 group-hover:text-white flex items-center justify-center border border-amber-100 transition-colors">
                 <Ruler className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-sm font-black text-slate-900">أخذ القياسات والتعديل</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">جاهز لتسجيل المقاسات الثمانية للثوب</div>
+            <div className="mt-3 w-full">
+              <div className="text-sm font-black text-slate-900 group-hover:text-amber-800 transition-colors">
+                أخذ القياسات والتعديل
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+                <span>جاهز لتسجيل المقاسات الثمانية للثوب</span>
+                <span className="text-[10px] text-amber-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  فتح الدفتر ←
+                </span>
+              </div>
             </div>
-          </div>
+          </button>
         )}
 
         {/* 5. Total Financials - Reports Permission Required */}
         {canReports && (
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">إجمالي المبيعات</span>
-              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('reports')}
+            className="group text-right bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-400 hover:shadow-md active:scale-[0.99] transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-700"
+            aria-label="عرض التقارير المالية وسجل العمليات"
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-bold text-slate-500 group-hover:text-slate-900 transition-colors">
+                إجمالي المبيعات
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 group-hover:bg-slate-800 group-hover:text-white flex items-center justify-center border border-slate-200 transition-colors">
                 <TrendingUp className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
+            <div className="mt-3 w-full">
               <div className="text-2xl font-black text-slate-900">{totalRevenue} ر.س</div>
               {canPayments && (
                 <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
@@ -249,7 +310,7 @@ export const DashboardView: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
+          </button>
         )}
       </div>
 
