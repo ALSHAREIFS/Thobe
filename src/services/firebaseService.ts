@@ -44,6 +44,10 @@ import {
   getLinkedPayments,
   getLinkedRefunds,
 } from '../utils/financialCalculations';
+import {
+  validateOrderPricingInput,
+  getOrderVatSnapshot,
+} from '../utils/vatCalculations';
 
 // Helper to format Firestore errors clearly
 export function parseFirebaseError(err: any): string {
@@ -956,6 +960,31 @@ export const TailorService = {
       if (data.vatNumber && !data.taxNumber) {
         updatedData.taxNumber = data.vatNumber;
       }
+      if (data.taxNumber && !data.vatNumber) {
+        updatedData.vatNumber = data.taxNumber;
+      }
+      if (data.vatRegistrationNumber) {
+        updatedData.vatRegistrationNumber = String(data.vatRegistrationNumber).trim();
+        if (!updatedData.taxNumber) {
+          updatedData.taxNumber = updatedData.vatRegistrationNumber;
+        }
+      }
+      if (data.vatRate !== undefined) {
+        const rateNum = Number(data.vatRate);
+        if (!Number.isFinite(rateNum) || rateNum < 0 || rateNum > 100) {
+          throw new Error('نسبة ضريبة القيمة المضافة يجب أن تكون بين 0% و 100%');
+        }
+        updatedData.vatRate = rateNum;
+      }
+      if (data.vatPriceMode !== undefined) {
+        if (!['INCLUSIVE', 'EXCLUSIVE'].includes(data.vatPriceMode)) {
+          throw new Error('طريقة إدخال الأسعار غير صالحة');
+        }
+        updatedData.vatPriceMode = data.vatPriceMode;
+      }
+      if (data.vatEnabled !== undefined) {
+        updatedData.vatEnabled = Boolean(data.vatEnabled);
+      }
 
       await updateDoc(doc(db, 'shops', shopId), updatedData);
       return await this.getShop(shopId);
@@ -1320,6 +1349,20 @@ export const TailorService = {
         throw new Error('يجب تحديد طريقة الدفع عند تسجيل عربون مدفوع');
       }
 
+      // Validate pricing and VAT parameters
+      if (orderInput.pricing) {
+        const pricingValidation = validateOrderPricingInput(orderInput.pricing);
+        if (!pricingValidation.isValid) {
+          throw new Error(`خطأ في التسعير والضريبة: ${pricingValidation.error}`);
+        }
+      }
+
+      // Canonical immutable VAT snapshot representing historical rules applied at order creation
+      const taxSnapshot = getOrderVatSnapshot({
+        pricing: orderInput.pricing,
+        taxSnapshot: (orderInput as any).taxSnapshot,
+      });
+
       const now = new Date().toISOString();
 
       // Pre-generate IDs and references
@@ -1341,6 +1384,7 @@ export const TailorService = {
         orderId,
         orderNumber,
         shopId,
+        taxSnapshot,
         financialLocked: isFinancialLocked,
         createdAt: now,
         updatedAt: now,
@@ -1468,6 +1512,11 @@ export const TailorService = {
     try {
       // Protection: If totalAmount is being modified, ensure it cannot be less than actual net paid
       if (data.pricing && typeof data.pricing.totalAmount === 'number') {
+        const pricingValidation = validateOrderPricingInput(data.pricing);
+        if (!pricingValidation.isValid) {
+          throw new Error(`خطأ في التسعير والضريبة: ${pricingValidation.error}`);
+        }
+
         const orderSnap = await getDoc(doc(db, `shops/${shopId}/orders`, orderId));
         if (orderSnap.exists()) {
           const currentOrder = orderSnap.data() as Order;
@@ -1504,6 +1553,13 @@ export const TailorService = {
         ...data,
         updatedAt: now,
       };
+
+      if (data.pricing) {
+        updatedData.taxSnapshot = getOrderVatSnapshot({
+          pricing: data.pricing,
+          taxSnapshot: data.taxSnapshot,
+        });
+      }
 
       await updateDoc(doc(db, `shops/${shopId}/orders`, orderId), updatedData);
       const refreshed = await this.getOrder(shopId, orderId);

@@ -21,6 +21,7 @@ import {
   getMeasurementNumeralPreference,
 } from '../../utils/measurementNormalization';
 import { TailorService } from '../../services/firebaseService';
+import { calculateVatPricing, roundMoney } from '../../utils/vatCalculations';
 import {
   User,
   UserPlus,
@@ -259,9 +260,56 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     }
   };
 
-  // Pricing calculations
-  const totalAmount = quantity * unitPrice;
-  const remainingAmount = Math.max(0, totalAmount - paidAmount);
+  // Pricing & VAT calculations
+  // Invariant: Orders in edit mode strictly use that order's snapshotted VAT settings.
+  // New orders and repeat orders use the shop's current VAT settings.
+  const vatConfig = useMemo(() => {
+    if (isEditingMode && initialEditingOrder) {
+      const isVatOnOrder = Boolean(
+        initialEditingOrder.pricing?.vatEnabled || initialEditingOrder.taxSnapshot?.vatEnabled
+      );
+      return {
+        vatEnabled: isVatOnOrder,
+        vatRate: isVatOnOrder
+          ? (initialEditingOrder.pricing?.vatRate ?? initialEditingOrder.taxSnapshot?.vatRate ?? 15)
+          : 0,
+        vatPriceMode: (initialEditingOrder.pricing?.vatPriceMode ||
+          initialEditingOrder.taxSnapshot?.vatPriceMode ||
+          'INCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
+        vatRegistrationNumber:
+          initialEditingOrder.pricing?.vatRegistrationNumber ||
+          initialEditingOrder.taxSnapshot?.vatRegistrationNumber ||
+          '',
+      };
+    }
+
+    // New order or repeat order template -> use shop's current VAT settings
+    return {
+      vatEnabled: Boolean(currentShop?.vatEnabled),
+      vatRate: typeof currentShop?.vatRate === 'number' ? currentShop.vatRate : 15,
+      vatPriceMode: (currentShop?.vatPriceMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE') as
+        | 'INCLUSIVE'
+        | 'EXCLUSIVE',
+      vatRegistrationNumber:
+        currentShop?.vatRegistrationNumber || currentShop?.taxNumber || currentShop?.vatNumber || '',
+    };
+  }, [isEditingMode, initialEditingOrder, currentShop]);
+
+  const vatPricing = useMemo(() => {
+    return calculateVatPricing({
+      enteredAmount: unitPrice,
+      quantity,
+      vatEnabled: vatConfig.vatEnabled,
+      vatRate: vatConfig.vatRate,
+      vatPriceMode: vatConfig.vatPriceMode,
+      vatRegistrationNumber: vatConfig.vatRegistrationNumber,
+    });
+  }, [unitPrice, quantity, vatConfig]);
+
+  const totalAmount = vatPricing.totalAmount;
+  const subtotalAmount = vatPricing.subtotalAmount;
+  const vatAmount = vatPricing.vatAmount;
+  const remainingAmount = Math.max(0, roundMoney(totalAmount - paidAmount));
   const isTotalLessThanNetPaid = isEditingMode && actualNetPaid > 0 && totalAmount < actualNetPaid;
 
   // Submission handler
@@ -363,6 +411,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             unitPrice,
             quantity,
             totalAmount,
+            subtotalAmount,
+            vatAmount,
+            vatEnabled: vatConfig.vatEnabled,
+            vatRate: vatConfig.vatRate,
+            vatPriceMode: vatConfig.vatPriceMode,
+            vatRegistrationNumber: vatConfig.vatRegistrationNumber,
+            taxAmount: vatAmount,
             paidAmount: existingPaid,
             remainingAmount: newRemaining,
           },
@@ -393,9 +448,15 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             fabricCost: 0,
             extrasCost: 0,
             totalAmount,
+            subtotalAmount,
+            vatAmount,
+            vatEnabled: vatConfig.vatEnabled,
+            vatRate: vatConfig.vatRate,
+            vatPriceMode: vatConfig.vatPriceMode,
+            vatRegistrationNumber: vatConfig.vatRegistrationNumber,
+            taxAmount: vatAmount,
             paidAmount,
             remainingAmount,
-            taxAmount: 0,
           },
           initialPaymentMethod: paymentMethod,
           orderDate: new Date().toISOString(),
@@ -931,7 +992,14 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">سعر الثوب الواحد (ر.س) *</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">سعر الثوب الواحد (ر.س) *</label>
+                    {vatConfig.vatEnabled && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                        {vatConfig.vatPriceMode === 'INCLUSIVE' ? 'شامل الضريبة' : '+ الضريبة'}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     min="0"
@@ -941,6 +1009,13 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
                     className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-slate-900 text-center focus:bg-white focus:border-[#1A365D]"
                   />
+                  {vatConfig.vatEnabled && unitPrice > 0 && (
+                    <div className="text-[10px] text-slate-500 mt-1 text-center font-medium">
+                      {vatConfig.vatPriceMode === 'INCLUSIVE'
+                        ? `(قبل الضريبة: ${(unitPrice / (1 + vatConfig.vatRate / 100)).toFixed(2)} ر.س)`
+                        : `(شامل الضريبة: ${(unitPrice * (1 + vatConfig.vatRate / 100)).toFixed(2)} ر.س)`}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1008,7 +1083,19 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-3 mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+              <div className={`grid ${vatConfig.vatEnabled ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-3'} gap-3 mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-center`}>
+                {vatConfig.vatEnabled && (
+                  <>
+                    <div>
+                      <div className="text-xs text-slate-500 font-semibold">المبلغ قبل الضريبة</div>
+                      <div className="text-base font-black text-slate-700 mt-0.5">{subtotalAmount} ر.س</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 font-semibold">ضريبة القيمة المضافة ({vatConfig.vatRate}%)</div>
+                      <div className="text-base font-black text-blue-800 mt-0.5">{vatAmount} ر.س</div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <div className="text-xs text-slate-500 font-semibold">إجمالي الطلب ({quantity} ثياب)</div>
                   <div className="text-lg font-black text-slate-900 mt-0.5">{totalAmount} ر.س</div>
@@ -1236,8 +1323,22 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             {/* Financials Summary */}
             <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-6 text-center sm:text-right flex-wrap">
+                {vatConfig.vatEnabled && (
+                  <>
+                    <div>
+                      <span className="text-xs text-slate-500 block">قبل الضريبة:</span>
+                      <span className="font-bold text-base text-slate-700">{subtotalAmount} ر.س</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-blue-800 block">ضريبة ({vatConfig.vatRate}%):</span>
+                      <span className="font-bold text-base text-blue-900">{vatAmount} ر.س</span>
+                    </div>
+                  </>
+                )}
                 <div>
-                  <span className="text-xs text-slate-500 block">إجمالي المبلغ:</span>
+                  <span className="text-xs text-slate-500 block">
+                    {vatConfig.vatEnabled ? 'إجمالي شامل الضريبة:' : 'إجمالي المبلغ:'}
+                  </span>
                   <span className="font-black text-lg text-slate-900">{totalAmount} ر.س</span>
                 </div>
                 <div>
@@ -1254,6 +1355,12 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <span className="font-black text-lg text-[#1A365D]">{remainingAmount} ر.س</span>
                 </div>
               </div>
+
+              {vatConfig.vatEnabled && vatConfig.vatRegistrationNumber && (
+                <div className="text-[11px] font-mono text-slate-600 bg-white/80 px-3 py-1.5 rounded-lg border border-blue-200">
+                  الرقم الضريبي: {vatConfig.vatRegistrationNumber}
+                </div>
+              )}
             </div>
           </div>
         )}

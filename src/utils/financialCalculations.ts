@@ -1,5 +1,20 @@
 import { Order, Payment, Refund } from '../types';
 
+/**
+ * Canonical filter for active, valid sales orders.
+ * Excludes cancelled and voided orders so only legitimate sales revenue is recognized.
+ * Reused across Dashboard, Reports, and VAT calculations to guarantee 100% financial consistency.
+ */
+export function isCanonicalActiveSalesOrder(order: any): boolean {
+  if (!order) return false;
+  return order.status !== 'CANCELLED';
+}
+
+export function filterCanonicalActiveOrders<T = Order>(orders: T[]): T[] {
+  if (!Array.isArray(orders)) return [];
+  return orders.filter(isCanonicalActiveSalesOrder);
+}
+
 export type OrderFinancialStatus =
   | 'UNPAID'
   | 'PARTIALLY_PAID'

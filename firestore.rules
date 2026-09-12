@@ -119,6 +119,17 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/shops/$(shopId)/orders/$(orderId)).data;
     }
 
+    // Validate Order VAT and Pricing snapshot parameters
+    function isValidOrderVat(data) {
+      return !('pricing' in data) || (
+        (!('vatEnabled' in data.pricing) || data.pricing.vatEnabled is bool) &&
+        (!('vatRate' in data.pricing) || (data.pricing.vatRate is number && data.pricing.vatRate >= 0 && data.pricing.vatRate <= 100)) &&
+        (!('vatPriceMode' in data.pricing) || data.pricing.vatPriceMode in ['INCLUSIVE', 'EXCLUSIVE']) &&
+        (!('subtotalAmount' in data.pricing) || (data.pricing.subtotalAmount is number && data.pricing.subtotalAmount >= 0)) &&
+        (!('vatAmount' in data.pricing) || (data.pricing.vatAmount is number && data.pricing.vatAmount >= 0))
+      );
+    }
+
     // =========================================================
     // 2. PLATFORM ADMINS DIRECTORY (Read-Only Reference for Owner)
     // =========================================================
@@ -255,6 +266,11 @@ service cloud.firestore {
           'pricingPlan',
           'limits'
         ]) &&
+        // Validate VAT settings if provided
+        (!('vatEnabled' in request.resource.data) || request.resource.data.vatEnabled is bool) &&
+        (!('vatRate' in request.resource.data) || (request.resource.data.vatRate is number && request.resource.data.vatRate >= 0 && request.resource.data.vatRate <= 100)) &&
+        (!('vatPriceMode' in request.resource.data) || request.resource.data.vatPriceMode in ['INCLUSIVE', 'EXCLUSIVE']) &&
+        (!('vatRegistrationNumber' in request.resource.data) || request.resource.data.vatRegistrationNumber is string) &&
         // Strict seat counter rules: either employeeCount & lastSeatAction are untouched, OR they are coupled to an atomic membership transition
         (
           // Case 1: General profile update where employeeCount and lastSeatAction are untouched
@@ -425,10 +441,12 @@ service cloud.firestore {
 
       // 5.3 Orders Collection (/shops/{shopId}/orders/{orderId})
       match /orders/{orderId} {
-        allow read, create: if canAccessOrders(shopId);
-        // Prevent unlocking financialLocked from true to false or deleting the field
+        allow read: if canAccessOrders(shopId);
+        allow create: if canAccessOrders(shopId) && isValidOrderVat(request.resource.data);
+        // Prevent unlocking financialLocked from true to false or deleting the field, and validate VAT structure
         allow update: if isSuperAdmin() || (
           canAccessOrders(shopId) &&
+          isValidOrderVat(request.resource.data) &&
           (!('financialLocked' in resource.data) || resource.data.financialLocked != true || (('financialLocked' in request.resource.data) && request.resource.data.financialLocked == true))
         );
         // Strict financial integrity: Orders with financialLocked=true or registered payments/refunds CANNOT be deleted

@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Settings,
   Sparkles,
+  DatabaseBackup,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +55,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
       label: 'التقارير والمبيعات',
       icon: TrendingUp,
       visible: hasPermission('reports'),
+    },
+    {
+      id: 'backup',
+      label: 'النسخ الاحتياطي',
+      icon: DatabaseBackup,
+      visible: isSuperAdmin || isShop, // Strict: EMPLOYEE cannot see backup
     },
     {
       id: 'settings',

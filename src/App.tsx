@@ -11,6 +11,7 @@ import { OrderListView } from './components/orders/OrderListView';
 import { CustomerListView } from './components/customers/CustomerListView';
 import { ReportsView } from './components/reports/ReportsView';
 import { SettingsView } from './components/settings/SettingsView';
+import { BackupView } from './components/backup/BackupView';
 import { PrintTailoringSheet } from './components/print/PrintTailoringSheet';
 import { AuthPage } from './components/auth/AuthPage';
 import { PlatformAdminDashboard } from './components/admin/PlatformAdminDashboard';
@@ -143,6 +144,8 @@ const MainLayout: React.FC = () => {
 
             {activeTab === 'reports' && hasPermission('reports') && <ReportsView />}
 
+            {activeTab === 'backup' && (isSuperAdmin || isShop) && <BackupView />}
+
             {activeTab === 'settings' && (isSuperAdmin || isShop) && <SettingsView />}
 
             {/* Fallback Unauthorized State if directly navigated to unpermitted tab */}
@@ -150,6 +153,7 @@ const MainLayout: React.FC = () => {
               (activeTab === 'orders' && !hasPermission('orders')) ||
               (activeTab === 'customers' && !hasPermission('customers') && !hasPermission('measurements')) ||
               (activeTab === 'reports' && !hasPermission('reports')) ||
+              (activeTab === 'backup' && !isSuperAdmin && !isShop) ||
               (activeTab === 'settings' && !isSuperAdmin && !isShop)) && (
               <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center space-y-4 shadow-sm max-w-lg mx-auto mt-12">
                 <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto border border-amber-100">

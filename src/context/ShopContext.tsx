@@ -25,8 +25,8 @@ interface ShopContextType {
   refreshEmployees: () => Promise<void>;
   
   // Navigation & Modals State
-  activeTab: 'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings';
-  setActiveTab: (tab: 'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings') => void;
+  activeTab: 'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings' | 'backup';
+  setActiveTab: (tab: 'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings' | 'backup') => void;
   
   selectedCustomerId: string | null;
   setSelectedCustomerId: (id: string | null) => void;
@@ -84,7 +84,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'new_order' | 'customers' | 'measurements' | 'payments' | 'reports' | 'settings' | 'backup'>('dashboard');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);

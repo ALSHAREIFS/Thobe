@@ -5,6 +5,7 @@ import { useShop } from '../../context/ShopContext';
 import { TailorService } from '../../services/firebaseService';
 import { getUnitLabel } from '../../utils/measurementConversion';
 import { formatMeasurementDisplay, getMeasurementNumeralPreference } from '../../utils/measurementNormalization';
+import { getOrderVatSnapshot } from '../../utils/vatCalculations';
 import { Printer, X, Scissors, Phone, MapPin, Calendar, User, ShieldCheck, Check, ArrowRight, Receipt, CreditCard } from 'lucide-react';
 import {
   CollarRegularIcon,
@@ -93,6 +94,15 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
   const netPaid = Math.max(0, grossPaid - totalRefunds);
   const totalAmount = order.pricing?.totalAmount || 0;
   const remainingAmount = Math.max(0, totalAmount - netPaid);
+
+  // Order-level immutable VAT snapshot
+  const vatSnapshot = getOrderVatSnapshot(order);
+  const effectiveTaxNumber =
+    vatSnapshot.vatRegistrationNumber ||
+    currentShop?.vatRegistrationNumber ||
+    currentShop?.taxNumber ||
+    currentShop?.vatNumber ||
+    '';
 
   const paymentMethodsSummary = orderPayments.length > 0
     ? Array.from(new Set(orderPayments.map((pay) => PAYMENT_METHOD_MAP[pay.method] || pay.method))).join(' + ')
@@ -201,8 +211,8 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
                     <MapPin className="w-3 h-3 text-stone-400" /> {currentShop.address}
                   </span>
                 )}
-                {(currentShop?.vatNumber || currentShop?.taxNumber) && (
-                  <span>الرقم الضريبي: {currentShop.vatNumber || currentShop.taxNumber}</span>
+                {effectiveTaxNumber && (
+                  <span className="font-mono">الرقم الضريبي: {effectiveTaxNumber}</span>
                 )}
               </div>
             </div>
@@ -210,7 +220,14 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
 
           {/* Barcode & Order Number Ticket */}
           <div className="text-left bg-stone-100 p-2.5 rounded-xl border border-stone-300">
-            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">أمر تفصيل رقم</div>
+            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest flex items-center justify-between gap-1">
+              <span>أمر تفصيل رقم</span>
+              {vatSnapshot.vatEnabled && (
+                <span className="text-[8px] font-black text-blue-900 bg-blue-100 px-1 py-0.5 rounded border border-blue-200">
+                  فاتورة ضريبية مبسطة
+                </span>
+              )}
+            </div>
             <div className="text-lg font-black text-stone-950 font-mono tracking-wider">{order.orderNumber}</div>
             {/* Visual Simulated Barcode */}
             <div className="h-6 w-32 bg-stone-900 my-1 flex items-center justify-center text-[8px] text-white tracking-[0.3em] font-mono">
@@ -442,9 +459,23 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         {/* 7. FINANCIAL SUMMARY & SIGNATURE RECEIPT */}
         <div className="border-t-2 border-stone-900 pt-3">
           <div className="flex items-center justify-between gap-4">
-            <div className="grid grid-cols-3 gap-3 text-center flex-1">
+            <div className={`grid ${vatSnapshot.vatEnabled ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
+              {vatSnapshot.vatEnabled && (
+                <>
+                  <div className="bg-stone-50 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
+                    <span className="text-[10px] text-stone-500 font-bold block">قبل الضريبة</span>
+                    <span className="font-black text-stone-900 text-sm">{vatSnapshot.subtotalAmount} ر.س</span>
+                  </div>
+                  <div className="bg-blue-50 p-2 rounded-lg border border-blue-200 flex flex-col justify-center">
+                    <span className="text-[10px] text-blue-800 font-bold block">الضريبة ({vatSnapshot.vatRate}%)</span>
+                    <span className="font-black text-blue-950 text-sm">{vatSnapshot.vatAmount} ر.س</span>
+                  </div>
+                </>
+              )}
               <div className="bg-stone-100 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
-                <span className="text-[10px] text-stone-500 font-bold block">إجمالي المبلغ</span>
+                <span className="text-[10px] text-stone-500 font-bold block">
+                  {vatSnapshot.vatEnabled ? 'الإجمالي شامل الضريبة' : 'إجمالي المبلغ'}
+                </span>
                 <span className="font-black text-stone-950 text-sm">{totalAmount} ر.س</span>
               </div>
               <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-300 flex flex-col justify-center">

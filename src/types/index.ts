@@ -18,6 +18,18 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: EmployeePermissions = {
 
 export type ShopStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
 
+export type VatPriceMode = 'INCLUSIVE' | 'EXCLUSIVE';
+
+export interface OrderTaxSnapshot {
+  vatEnabled: boolean;
+  vatRate: number;
+  vatPriceMode: VatPriceMode | null;
+  vatRegistrationNumber?: string;
+  subtotalAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+}
+
 export const SHOP_STATUS_MAP: Record<ShopStatus, { label: string; color: string; bg: string; border: string }> = {
   PENDING: { label: 'قيد المراجعة', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
   ACTIVE: { label: 'نشط وفعال', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
@@ -83,6 +95,10 @@ export interface Shop {
   crNumber?: string; // السجل التجاري
   taxNumber?: string; // الرقم الضريبي
   vatNumber?: string; // alias
+  vatEnabled?: boolean; // تفعيل ضريبة القيمة المضافة
+  vatRegistrationNumber?: string; // الرقم الضريبي للمنشأة
+  vatRate?: number; // نسبة الضريبة (مثال: 15)
+  vatPriceMode?: VatPriceMode; // طريقة إدخال الأسعار (INCLUSIVE | EXCLUSIVE)
   currency: string;
   defaultDeliveryDays: number;
   termsAndConditions?: string;
@@ -319,6 +335,13 @@ export interface OrderPricing {
   remainingAmount: number;
   discount?: number;
   taxAmount?: number;
+  // VAT Snapshot Fields (immutable historical tax record)
+  subtotalAmount?: number; // المبلغ قبل الضريبة
+  vatAmount?: number; // قيمة ضريبة القيمة المضافة
+  vatEnabled?: boolean; // هل تم تطبيق الضريبة
+  vatRate?: number; // نسبة الضريبة المطبقة وقت الطلب
+  vatPriceMode?: VatPriceMode | null; // طريقة إدخال السعر وقت الطلب
+  vatRegistrationNumber?: string; // الرقم الضريبي للمحل وقت الطلب
 }
 
 export interface StatusHistoryItem {
@@ -353,6 +376,7 @@ export interface Order {
   measurementId?: string;
   tailoringDetails: TailoringDetails;
   pricing: OrderPricing;
+  taxSnapshot?: OrderTaxSnapshot;
   orderDate: string;
   deliveryDate: string;
   actualDeliveryDate?: string;

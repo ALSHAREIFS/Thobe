@@ -6,7 +6,7 @@ import { CustomerDetailModal } from '../customers/CustomerDetailModal';
 import { OrderDetailModal } from '../orders/OrderDetailModal';
 import { WhatsAppModal } from '../whatsapp/WhatsAppModal';
 import { Customer, Order } from '../../types';
-import { calculateOrderFinancials } from '../../utils/financialCalculations';
+import { calculateOrderFinancials, filterCanonicalActiveOrders } from '../../utils/financialCalculations';
 import {
   Scissors,
   Users,
@@ -56,7 +56,7 @@ export const DashboardView: React.FC = () => {
   const canReports = hasPermission('reports');
 
   // Valid non-cancelled orders for active revenue & order metrics
-  const validOrders = orders.filter((o) => o.status !== 'CANCELLED');
+  const validOrders = filterCanonicalActiveOrders(orders);
 
   // Metrics Calculations (computed only when relevant)
   const activeOrders = canOrders

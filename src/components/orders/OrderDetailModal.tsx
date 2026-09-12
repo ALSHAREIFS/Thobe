@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { TailorService } from '../../services/firebaseService';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
 import { calculateOrderFinancials, getLinkedPayments, getLinkedRefunds } from '../../utils/financialCalculations';
+import { getOrderVatSnapshot } from '../../utils/vatCalculations';
 import {
   X,
   Printer,
@@ -177,6 +178,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     hasFinancialMismatch,
     mismatchReason,
   } = financials;
+
+  // Order-level immutable VAT snapshot (source of truth for this specific order)
+  const vatSnapshot = getOrderVatSnapshot(order);
 
   // Synchronize payAmount with calculated active remaining balance
   useEffect(() => {
@@ -755,12 +759,42 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               </div>
             </div>
 
+            {/* VAT Snapshot Badge & Details if enabled */}
+            {vatSnapshot.vatEnabled && (
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-[#1A365D] text-white font-black text-[10px]">
+                    فاتورة ضريبية مبسطة
+                  </span>
+                  <span className="text-slate-700 font-bold">
+                    الضريبة مفعّلة ({vatSnapshot.vatRate}%)
+                  </span>
+                  {vatSnapshot.vatRegistrationNumber && (
+                    <span className="text-slate-500 font-mono text-[11px]">
+                      الرقم الضريبي: {vatSnapshot.vatRegistrationNumber}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-slate-700 font-bold">
+                  <span>قبل الضريبة: <b className="text-slate-900">{vatSnapshot.subtotalAmount}</b> ر.س</span>
+                  <span className="text-blue-900">مبلغ الضريبة: <b>{vatSnapshot.vatAmount}</b> ر.س</span>
+                  <span className="text-slate-900">الإجمالي: <b>{financials.totalAmount}</b> ر.س</span>
+                </div>
+              </div>
+            )}
+
             {/* Financial Status Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
               <div className="bg-white p-3.5 rounded-xl border border-stone-200 flex flex-col justify-center shadow-2xs">
-                <span className="text-xs text-stone-500 font-semibold block">قيمة الطلب</span>
+                <span className="text-xs text-stone-500 font-semibold block">
+                  {vatSnapshot.vatEnabled ? 'قيمة الطلب (شامل الضريبة)' : 'قيمة الطلب'}
+                </span>
                 <span className="text-lg font-black text-stone-900 mt-0.5">{financials.totalAmount} ر.س</span>
-                <span className="text-[10px] text-stone-400 mt-0.5">سعر التفصيل الإجمالي</span>
+                <span className="text-[10px] text-stone-400 mt-0.5">
+                  {vatSnapshot.vatEnabled
+                    ? `قبل الضريبة: ${vatSnapshot.subtotalAmount} ر.س`
+                    : 'سعر التفصيل الإجمالي'}
+                </span>
               </div>
               
               <div className="bg-white p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 flex flex-col justify-center shadow-2xs">

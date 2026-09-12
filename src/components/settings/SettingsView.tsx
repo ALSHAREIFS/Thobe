@@ -57,6 +57,11 @@ export const SettingsView: React.FC = () => {
   const [vatNumber, setVatNumber] = useState(currentShop?.taxNumber || currentShop?.vatNumber || '');
   const [crNumber, setCrNumber] = useState(currentShop?.crNumber || '');
   const [defaultDeliveryDays, setDefaultDeliveryDays] = useState(currentShop?.defaultDeliveryDays || 5);
+  // VAT & Tax Settings
+  const [vatEnabled, setVatEnabled] = useState(currentShop?.vatEnabled ?? false);
+  const [vatRegistrationNumber, setVatRegistrationNumber] = useState(currentShop?.vatRegistrationNumber || currentShop?.taxNumber || currentShop?.vatNumber || '');
+  const [vatRate, setVatRate] = useState<number>(typeof currentShop?.vatRate === 'number' ? currentShop.vatRate : 15);
+  const [vatPriceMode, setVatPriceMode] = useState<'INCLUSIVE' | 'EXCLUSIVE'>(currentShop?.vatPriceMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE');
   const [saving, setSaving] = useState(false);
 
   // New Employee Modal State
@@ -98,6 +103,10 @@ export const SettingsView: React.FC = () => {
       setVatNumber(currentShop.taxNumber || currentShop.vatNumber || '');
       setCrNumber(currentShop.crNumber || '');
       setDefaultDeliveryDays(currentShop.defaultDeliveryDays || 5);
+      setVatEnabled(Boolean(currentShop.vatEnabled));
+      setVatRegistrationNumber(currentShop.vatRegistrationNumber || currentShop.taxNumber || currentShop.vatNumber || '');
+      setVatRate(typeof currentShop.vatRate === 'number' ? currentShop.vatRate : 15);
+      setVatPriceMode(currentShop.vatPriceMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE');
     }
   }, [currentShop]);
 
@@ -106,18 +115,23 @@ export const SettingsView: React.FC = () => {
     if (!currentShop?.shopId || !canManage) return;
     setSaving(true);
     try {
+      const trimmedVatNum = vatRegistrationNumber.trim() || vatNumber.trim();
       await updateShopSettings({
         name: shopName,
         shopName: shopName,
         phone,
         city,
         address,
-        taxNumber: vatNumber,
-        vatNumber,
+        taxNumber: trimmedVatNum,
+        vatNumber: trimmedVatNum,
         crNumber,
         defaultDeliveryDays,
+        vatEnabled,
+        vatRegistrationNumber: trimmedVatNum,
+        vatRate: Number(vatRate) || 15,
+        vatPriceMode,
       });
-      showToast('تم حفظ إعدادات المحل بنجاح', 'success');
+      showToast('تم حفظ إعدادات المحل والضريبة بنجاح', 'success');
     } catch (err: any) {
       showToast(err.message || 'فشل حفظ الإعدادات', 'error');
     } finally {
@@ -360,18 +374,6 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">الرقم الضريبي (VAT)</label>
-            <input
-              type="text"
-              dir="ltr"
-              value={vatNumber}
-              onChange={(e) => setVatNumber(e.target.value)}
-              placeholder="3000xxxxxxxx0003"
-              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 focus:bg-white focus:border-[#1A365D] focus:outline-none text-left"
-            />
-          </div>
-
-          <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">رقم السجل التجاري (CR)</label>
             <input
               type="text"
@@ -384,13 +386,111 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
+        {/* VAT & Tax Configuration */}
+        <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <span>الضريبة والفوترة</span>
+                {vatEnabled && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    مفعّلة ({vatRate}%)
+                  </span>
+                )}
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                إعدادات ضريبة القيمة المضافة للطلبات الجديدة الصادرة من المتجر
+              </p>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={vatEnabled}
+                onChange={(e) => setVatEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1A365D]"></div>
+              <span className="ms-2 text-xs font-bold text-slate-700">
+                {vatEnabled ? 'المحل مسجل بالضريبة' : 'المحل غير مسجل بالضريبة'}
+              </span>
+            </label>
+          </div>
+
+          {vatEnabled && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    الرقم الضريبي للمنشأة *
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    required={vatEnabled}
+                    value={vatRegistrationNumber}
+                    onChange={(e) => {
+                      setVatRegistrationNumber(e.target.value);
+                      setVatNumber(e.target.value);
+                    }}
+                    placeholder="3000xxxxxxxx0003"
+                    className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 focus:border-[#1A365D] focus:outline-none text-left font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">يظهر في رأس الفواتير ونماذج الطباعة</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    نسبة ضريبة القيمة المضافة (%) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    required={vatEnabled}
+                    value={vatRate}
+                    onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 focus:border-[#1A365D] focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">النسبة المعتمدة بالمملكة 15%</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    طريقة إدخال الأسعار في الطلبات
+                  </label>
+                  <select
+                    value={vatPriceMode}
+                    onChange={(e) => setVatPriceMode(e.target.value as 'INCLUSIVE' | 'EXCLUSIVE')}
+                    className="w-full px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 font-bold focus:border-[#1A365D] focus:outline-none"
+                  >
+                    <option value="INCLUSIVE">الأسعار المدخلة شاملة الضريبة (الموصى به)</option>
+                    <option value="EXCLUSIVE">الأسعار المدخلة غير شاملة الضريبة (+15%)</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {vatPriceMode === 'INCLUSIVE'
+                      ? 'السعر الذي يدخله الخياط يعتبر الإجمالي النهائي شامل الضريبة'
+                      : 'سيتم احتساب الضريبة وإضافتها فوق السعر المدخل'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 border border-blue-200/60 rounded-lg text-xs text-blue-900 leading-relaxed">
+                <span className="font-bold">تنبيه سلامة السجلات التاريخية: </span>
+                تنطبق إعدادات الضريبة على الطلبات الجديدة المنشأة مستقبلاً فقط. الطلبات السابقة والفواتير القديمة ستحتفظ بحساباتها الأصلية دون أي تغيير أو إعادة احتساب.
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end pt-3">
           <button
             type="submit"
             disabled={saving}
             className="px-6 py-2.5 bg-[#1A365D] hover:bg-[#152C4D] text-white font-black text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 cursor-pointer"
           >
-            {saving ? 'جاري الحفظ...' : 'حفظ بيانات المحل'}
+            {saving ? 'جاري الحفظ...' : 'حفظ بيانات المحل وإعدادات الضريبة'}
           </button>
         </div>
       </form>
