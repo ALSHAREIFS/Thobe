@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Only SUPER_ADMIN can upload to restore_uploads
+    match /restore_uploads/{jobId} {
+      allow read: if false; // Only backend reads
+      allow write: if request.auth != null
+        && request.auth.token.email == "abdallahshareif11al@gmail.com"
+        && request.auth.token.email_verified == true
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('application/zip');
+    }
+  }
+}

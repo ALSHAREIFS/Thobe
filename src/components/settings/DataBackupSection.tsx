@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Download,
   ShieldCheck,
@@ -14,9 +14,12 @@ import {
   RefreshCw,
   HardDrive,
   Lock,
+  Upload,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { downloadStoreBackup, BackupSummary } from '../../services/storeBackupService';
+import { validateThobiBackupZip, ValidationReport } from '../../services/storeBackupRestoreService';
 
 export const DataBackupSection: React.FC = () => {
   const { currentShop, currentUser, isSuperAdmin, isShop } = useAuth();
@@ -27,6 +30,11 @@ export const DataBackupSection: React.FC = () => {
   const [exportPercent, setExportPercent] = useState<number>(0);
   const [exportError, setExportError] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<BackupSummary | null>(null);
+
+  // Restore States
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const shopId = currentShop?.shopId;
   const canExport = Boolean(shopId && (isShop || isSuperAdmin));
@@ -88,6 +96,26 @@ export const DataBackupSection: React.FC = () => {
       setExportError(err.message || 'تعذر استكمال النسخ الاحتياطي. يرجى المحاولة لاحقاً.');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !shopId) return;
+    
+    setIsValidating(true);
+    setValidationReport(null);
+    
+    try {
+      const report = await validateThobiBackupZip(file, shopId);
+      setValidationReport(report);
+    } catch (err: any) {
+      console.error('Validation error:', err);
+    } finally {
+      setIsValidating(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -305,6 +333,117 @@ export const DataBackupSection: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Restore Section */}
+      <div className="pt-6 border-t border-slate-100 mt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Upload className="w-5 h-5 text-emerald-600" />
+          <h3 className="font-bold text-slate-800">استعادة نسخة احتياطية</h3>
+        </div>
+        
+        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="text-sm text-slate-600">
+              <p className="mb-1">قم بتحديد ملف النسخة الاحتياطية (ZIP) لفحصه والتأكد من سلامته.</p>
+              <p className="text-xs text-slate-500">ملاحظة: هذه الخطوة تقوم بالفحص فقط ولا تقوم بتعديل البيانات الحالية.</p>
+            </div>
+            
+            <div className="relative shrink-0">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".zip"
+                className="hidden"
+                onChange={handleFileSelect}
+                id="backup-upload"
+              />
+              <label
+                htmlFor="backup-upload"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 active:scale-98 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {isValidating ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                    <span>جاري الفحص...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileArchive className="w-4 h-4 text-emerald-600" />
+                    <span>اختيار ملف النسخة الاحتياطية</span>
+                  </>
+                )}
+              </label>
+            </div>
+          </div>
+          
+          {validationReport && (
+            <div className="mt-5 p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
+              <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                تقرير فحص النسخة الاحتياطية
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-600 mb-4">
+                <div><span className="text-slate-400 ml-1">اسم المتجر:</span> <strong className="text-slate-800">{validationReport.shopName || 'غير متوفر'}</strong></div>
+                <div><span className="text-slate-400 ml-1">معرف المتجر:</span> <strong className="text-slate-800">{validationReport.shopId || 'غير متوفر'}</strong></div>
+                <div className="sm:col-span-2"><span className="text-slate-400 ml-1">تاريخ إنشاء النسخة:</span> <strong className="text-slate-800">{validationReport.exportedAt ? formatBackupDate(validationReport.exportedAt) : 'غير متوفر'}</strong></div>
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">العملاء: <strong className="text-emerald-700">{validationReport.counts.customers}</strong></div>
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">المقاسات: <strong className="text-emerald-700">{validationReport.counts.measurements}</strong></div>
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">الطلبات: <strong className="text-emerald-700">{validationReport.counts.orders}</strong></div>
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">الدفعات: <strong className="text-emerald-700">{validationReport.counts.payments}</strong></div>
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">الاستردادات: <strong className="text-emerald-700">{validationReport.counts.refunds}</strong></div>
+                <div className="bg-slate-50 px-2 py-1 rounded text-xs">الموظفون: <strong className="text-emerald-700">{validationReport.counts.staff}</strong></div>
+              </div>
+              
+              <div className="space-y-2 text-xs mb-4">
+                <div className="flex justify-between items-center p-2 rounded bg-slate-50">
+                  <span className="font-medium text-slate-700">سلامة الملف</span>
+                  {validationReport.isComplete ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
+                </div>
+                <div className="flex justify-between items-center p-2 rounded bg-slate-50">
+                  <span className="font-medium text-slate-700">سلامة العلاقات</span>
+                  {validationReport.isRelationsValid ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
+                </div>
+                <div className="flex justify-between items-center p-2 rounded bg-slate-50">
+                  <span className="font-medium text-slate-700">تطابق المتجر</span>
+                  {validationReport.isShopMatch ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
+                </div>
+                <div className="flex justify-between items-center p-2 rounded bg-slate-50">
+                  <span className="font-medium text-slate-700">التوقيع الرقمي</span>
+                  {validationReport.isHashValid ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
+                </div>
+              </div>
+              
+              {validationReport.errors.length > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg text-xs text-rose-700 space-y-1 mb-4">
+                  <div className="font-bold flex items-center gap-1 mb-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    أخطاء التحقق:
+                  </div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationReport.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  </ul>
+                </div>
+              )}
+              
+              {validationReport.isValid ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-800 text-center leading-relaxed">
+                  <strong>تم التحقق من النسخة بنجاح.</strong>
+                  <br />
+                  <span className="text-emerald-700 mt-1 block">الاستعادة الآمنة تتطلب تنفيذها من خلال خدمة الاستعادة الموثوقة لتجنب تدمير البيانات (Backend Cloud Function).</span>
+                </div>
+              ) : (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg text-xs text-rose-800 text-center font-bold">
+                  لا يمكن استعادة هذه النسخة لوجود أخطاء.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* MODAL 1: CONFIRMATION MODAL */}
       {showConfirmModal && (

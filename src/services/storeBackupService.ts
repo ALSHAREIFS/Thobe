@@ -63,7 +63,7 @@ function buildCsv<T>(
 /**
  * Computes SHA-256 hash using the native Web Cryptography API.
  */
-async function computeSha256(text: string): Promise<string> {
+export async function computeSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);

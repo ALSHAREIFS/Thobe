@@ -131,6 +131,18 @@ service cloud.firestore {
     }
 
     // =========================================================
+    // 1.5 RECOVERY SHOPS & RESTORE JOBS (Strict Isolation)
+    // =========================================================
+    match /recoveryShops/{document=**} {
+      allow read, write: if false; // Only trusted backend uses Admin SDK
+    }
+    
+    match /restoreJobs/{jobId} {
+      allow read: if isSuperAdmin(); 
+      allow write: if false; // Only trusted backend writes status
+    }
+
+    // =========================================================
     // 2. PLATFORM ADMINS DIRECTORY (Read-Only Reference for Owner)
     // =========================================================
     match /platform_admins/{adminId} {

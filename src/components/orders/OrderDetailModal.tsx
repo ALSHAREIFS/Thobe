@@ -85,14 +85,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
   const [refundScrollTrigger, setRefundScrollTrigger] = useState(0);
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDeleteBlockedModal, setShowDeleteBlockedModal] = useState(false);
   const [showCancelWarningModal, setShowCancelWarningModal] = useState(false);
   const [showCancelUnpaidModal, setShowCancelUnpaidModal] = useState(false);
   const [cancelRefundOption, setCancelRefundOption] = useState<'refund_now' | 'refund_later'>('refund_later');
   const [cancelRefundMethod, setCancelRefundMethod] = useState<'cash' | 'card' | 'bank_transfer' | 'stc_pay'>('cash');
   const [isCancelling, setIsCancelling] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [directPayments, setDirectPayments] = useState<Payment[]>([]);
   const [directRefunds, setDirectRefunds] = useState<Refund[]>([]);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -258,29 +255,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
-  const handleDeleteClick = () => {
-    const paid = order.pricing?.paidAmount || 0;
-    const hasPayments = orderPayments.length > 0 || grossPaid > 0;
-    if (paid > 0 || hasPayments) {
-      setShowDeleteBlockedModal(true);
-    } else {
-      setShowDeleteConfirm(true);
-    }
-  };
 
-  const handleConfirmDelete = async () => {
-    if (isDeleting) return;
-    setIsDeleting(true);
-    try {
-      await deleteOrder(order.orderId);
-      setShowDeleteConfirm(false);
-      onClose();
-    } catch (err: any) {
-      console.error('Error deleting order:', err);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -469,14 +444,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <Copy className="w-4 h-4" />
               تكرار الطلب
             </button>
-            <button
-              onClick={handleDeleteClick}
-              className="flex items-center gap-1 px-3 py-2 bg-stone-800 hover:bg-rose-900/60 text-stone-300 hover:text-rose-200 text-xs font-bold rounded-xl border border-stone-700 hover:border-rose-700 transition-all cursor-pointer"
-              title="حذف الطلب"
-            >
-              <Trash2 className="w-4 h-4 text-rose-400" />
-              <span className="hidden sm:inline">حذف</span>
-            </button>
+
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
@@ -495,7 +463,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </span>
 
             <div className="flex items-center flex-wrap gap-1.5">
-              {(['NEW', 'CUTTING', 'SEWING', 'FITTING', 'READY', 'DELIVERED', 'CANCELLED'] as OrderStatus[]).map((st) => {
+              {(['NEW', 'CUTTING', 'SEWING', 'FITTING', 'READY', 'DELIVERED'] as OrderStatus[]).map((st) => {
                 const isCurrent = order.status === st;
                 const config = ORDER_STATUS_LABELS[st] || { label: st, bg: '#eee', color: '#333' };
                 return (
@@ -517,6 +485,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </button>
                 );
               })}
+              {order.status === 'CANCELLED' ? (
+                <span className="px-3 py-1 text-xs font-bold rounded-xl border bg-rose-800 text-white border-rose-800 shadow-xs cursor-default flex items-center gap-1">
+                  ملغى
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleStatusChange('CANCELLED')}
+                  className="px-4 py-1 text-xs font-black rounded-xl border transition-all cursor-pointer bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 flex items-center gap-1 ml-2"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  إلغاء الطلب
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1409,144 +1391,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </div>
       )}
 
-      {/* Delete Blocked Modal when payments exist */}
-      {showDeleteBlockedModal && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
-            <div className="p-5 bg-rose-900 text-white flex items-center justify-between">
-              <h3 className="font-black text-base flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-300" />
-                تعذر الحذف النهائي للطلب
-              </h3>
-              <button
-                onClick={() => setShowDeleteBlockedModal(false)}
-                className="text-rose-200 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="p-6 space-y-4">
-              <p className="text-sm font-bold text-stone-900">
-                لا يمكن حذف الطلب رقم <span className="text-rose-700 font-mono">({order.orderNumber})</span> نهائياً.
-              </p>
 
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 space-y-2">
-                <p className="font-bold">
-                  يحتوي هذا الطلب على دفعات مسجلة بقيمة <span className="font-black text-rose-950">{order.pricing?.paidAmount || 0} ر.س</span> ({orderPayments.length} دفعة).
-                </p>
-                <p className="text-rose-700 text-[11px] leading-relaxed">
-                  حذف هذا الطلب سيتسبب في وجود دفعات غير مرتبطة بطلب وتشويه سجلات المتجر. يرجى إلغاء الطلب بدلاً من حذفه.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-stone-100">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteBlockedModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  إغلاق
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDeleteBlockedModal(false);
-                    handleStatusChange('CANCELLED');
-                  }}
-                  className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white text-xs font-black rounded-xl shadow-xs transition-colors cursor-pointer"
-                >
-                  إلغاء الطلب بدلاً من حذفه
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Order Confirmation Modal (only for zero paidAmount) */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-stone-200 overflow-hidden">
-            <div className="p-5 bg-rose-900 text-white flex items-center justify-between">
-              <h3 className="font-black text-base flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-300" />
-                تأكيد حذف أمر التفصيل
-              </h3>
-              <button
-                disabled={isDeleting}
-                onClick={() => setShowDeleteConfirm(false)}
-                className="text-rose-200 hover:text-white disabled:opacity-50"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <p className="text-sm font-bold text-stone-800">
-                هل أنت متأكد من حذف الطلب رقم <span className="text-rose-700 font-mono underline underline-offset-4">({order.orderNumber})</span> للعميل <span className="font-black">{order.customerName}</span>؟
-              </p>
-
-              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-600 space-y-1">
-                <div className="flex justify-between">
-                  <span>نوع الثوب:</span>
-                  <span className="font-bold text-stone-800">{order.garmentType} ({order.quantity} ثياب)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>إجمالي المبلغ:</span>
-                  <span className="font-bold text-stone-800">{order.pricing?.totalAmount} ر.س</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-rose-600 font-semibold leading-relaxed">
-                ⚠️ تحذير: سيتم حذف أمر التفصيل ومقاساته المخصصة نهائياً من سجلات المتجر وتحديث الإحصائيات مباشرة.
-              </p>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-stone-100">
-                <button
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={handleConfirmDelete}
-                  className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  {isDeleting ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      <span>جارٍ الحذف...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>حذف الطلب</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WhatsApp Chat Modal */}
-      {showWhatsAppModal && (
-        <WhatsAppModal
-          isOpen={showWhatsAppModal}
-          onClose={() => setShowWhatsAppModal(false)}
-          customerName={order.customerName}
-          phone={order.customerPhone}
-          orderNumber={order.orderNumber}
-          orderStatus={order.status}
-          shopName={currentShop?.name || currentShop?.shopName}
-        />
-      )}
     </div>
   );
 };
