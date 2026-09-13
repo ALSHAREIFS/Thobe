@@ -20,8 +20,8 @@ export interface ShopVatSettings {
   vatEnabled?: boolean;
   vatRegistrationNumber?: string;
   currency?: string;
+  country?: string;
   vatRate?: number; // e.g. 15 for 15%
-  currency?: string;
   vatPriceMode?: VatPriceMode;
 }
 
@@ -42,6 +42,8 @@ export interface VatCalculationInput {
   vatRate?: number; // e.g. 15 for 15%
   vatPriceMode?: VatPriceMode | null;
   vatRegistrationNumber?: string;
+  country?: string;
+  currency?: string;
 }
 
 export interface VatCalculationResult {
