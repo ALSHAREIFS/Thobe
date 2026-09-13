@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatCurrency, getCurrencySymbol } from '../../utils/currencyFormatting';
 import { Customer, Order } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
@@ -239,12 +240,12 @@ export const CustomerListView: React.FC = () => {
                       </span>
                       <span className="text-stone-300">•</span>
                       <span className="font-black text-stone-900">
-                        {stats.totalOrderValue} ر.س
+                        {stats.totalOrderValue} {getCurrencySymbol(shop?.currency)}
                       </span>
                     </div>
                     {stats.totalRemaining > 0 && (
                       <span className="text-[11px] font-bold text-amber-800">
-                        متبقي: {stats.totalRemaining} ر.س
+                        متبقي: {stats.totalRemaining} {getCurrencySymbol(shop?.currency)}
                       </span>
                     )}
                   </div>

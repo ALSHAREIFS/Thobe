@@ -1,3 +1,4 @@
+import { formatCurrency, getCurrencySymbol } from '../utils/currencyFormatting';
 import * as XLSX from 'xlsx';
 import { Customer, Order, Payment, Refund, MeasurementRecord, ORDER_STATUS_MAP, PAYMENT_METHOD_MAP } from '../types';
 

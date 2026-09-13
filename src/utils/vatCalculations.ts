@@ -20,6 +20,7 @@ export interface ShopVatSettings {
   vatEnabled?: boolean;
   vatRegistrationNumber?: string;
   vatRate?: number; // e.g. 15 for 15%
+  currency?: string;
   vatPriceMode?: VatPriceMode;
 }
 
@@ -93,7 +94,8 @@ export function validateFinancialNumber(
 export function calculateVatPricing(input: VatCalculationInput): VatCalculationResult {
   const quantity = Math.max(1, Math.round(Number(input.quantity) || 1));
   const enteredAmount = roundMoney(Number(input.enteredAmount) || 0);
-  const vatEnabled = Boolean(input.vatEnabled);
+  const isYER = input.currency === 'YER';
+  const vatEnabled = isYER ? false : Boolean(input.vatEnabled);
   const rawRate = Number(input.vatRate);
   const vatRate = vatEnabled && Number.isFinite(rawRate) && rawRate >= 0 && rawRate <= 100 ? rawRate : (vatEnabled ? 15 : 0);
   const vatPriceMode: VatPriceMode | null = vatEnabled ? (input.vatPriceMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE') : null;

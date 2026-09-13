@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { formatCurrency, getCurrencySymbol } from '../../utils/currencyFormatting';
 import { Customer, MeasurementData, Order, TailoringDetails, PAYMENT_METHOD_MAP } from '../../types';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
@@ -328,7 +329,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     // Financial check: Prevent totalAmount < actualNetPaid
     if (isTotalLessThanNetPaid) {
       showToast(
-        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${formatCurrency(totalAmount, shop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} {getCurrencySymbol(shop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
         'error'
       );
       setStep(4);
@@ -521,7 +522,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     if (step === 4) {
       if (isTotalLessThanNetPaid) {
         showToast(
-          `لا يمكن المتابعة: إجمالي الطلب الجديد (${totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ر.س). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+          `لا يمكن المتابعة: إجمالي الطلب الجديد (${formatCurrency(totalAmount, shop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} {getCurrencySymbol(shop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
           'error'
         );
         return;
@@ -994,7 +995,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-slate-700">سعر الثوب الواحد (ر.س) *</label>
-                    {vatConfig.vatEnabled && (
+                    {vatConfig.vatEnabled && shop?.currency !== 'YER' && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
                         {vatConfig.vatPriceMode === 'INCLUSIVE' ? 'شامل الضريبة' : '+ الضريبة'}
                       </span>
@@ -1012,8 +1013,8 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   {vatConfig.vatEnabled && unitPrice > 0 && (
                     <div className="text-[10px] text-slate-500 mt-1 text-center font-medium">
                       {vatConfig.vatPriceMode === 'INCLUSIVE'
-                        ? `(قبل الضريبة: ${(unitPrice / (1 + vatConfig.vatRate / 100)).toFixed(2)} ر.س)`
-                        : `(شامل الضريبة: ${(unitPrice * (1 + vatConfig.vatRate / 100)).toFixed(2)} ر.س)`}
+                        ? `(قبل الضريبة: ${(unitPrice / (1 + vatConfig.vatRate / 100)).toFixed(2)} {getCurrencySymbol(shop?.currency)})`
+                        : `(شامل الضريبة: ${(unitPrice * (1 + vatConfig.vatRate / 100)).toFixed(2)} {getCurrencySymbol(shop?.currency)})`}
                     </div>
                   )}
                 </div>
@@ -1024,7 +1025,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   </label>
                   {isEditingMode ? (
                     <div className="w-full px-3 py-2 text-base font-black bg-stone-100 rounded-xl border border-stone-300 text-emerald-800 text-center flex items-center justify-center">
-                      {initialEditingOrder?.pricing?.paidAmount || 0} ر.س
+                      {initialEditingOrder?.pricing?.paidAmount || 0} {getCurrencySymbol(shop?.currency)}
                     </div>
                   ) : (
                     <input
@@ -1084,29 +1085,29 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
               {/* Summary Cards */}
               <div className={`grid ${vatConfig.vatEnabled ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-3'} gap-3 mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-center`}>
-                {vatConfig.vatEnabled && (
+                {vatConfig.vatEnabled && shop?.currency !== 'YER' && (
                   <>
                     <div>
                       <div className="text-xs text-slate-500 font-semibold">المبلغ قبل الضريبة</div>
-                      <div className="text-base font-black text-slate-700 mt-0.5">{subtotalAmount} ر.س</div>
+                      <div className="text-base font-black text-slate-700 mt-0.5">{formatCurrency(subtotalAmount, shop?.currency)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 font-semibold">ضريبة القيمة المضافة ({vatConfig.vatRate}%)</div>
-                      <div className="text-base font-black text-blue-800 mt-0.5">{vatAmount} ر.س</div>
+                      <div className="text-base font-black text-blue-800 mt-0.5">{formatCurrency(vatAmount, shop?.currency)}</div>
                     </div>
                   </>
                 )}
                 <div>
                   <div className="text-xs text-slate-500 font-semibold">إجمالي الطلب ({quantity} ثياب)</div>
-                  <div className="text-lg font-black text-slate-900 mt-0.5">{totalAmount} ر.س</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{formatCurrency(totalAmount, shop?.currency)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-emerald-700 font-semibold">المدفوع (العربون)</div>
-                  <div className="text-lg font-black text-emerald-700 mt-0.5">{paidAmount} ر.س</div>
+                  <div className="text-lg font-black text-emerald-700 mt-0.5">{paidAmount} {getCurrencySymbol(shop?.currency)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-[#1A365D] font-semibold">المتبقي عند الاستلام</div>
-                  <div className="text-lg font-black text-[#1A365D] mt-0.5">{remainingAmount} ر.س</div>
+                  <div className="text-lg font-black text-[#1A365D] mt-0.5">{remainingAmount} {getCurrencySymbol(shop?.currency)}</div>
                 </div>
               </div>
 
@@ -1115,7 +1116,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-black text-rose-800 text-sm">
-                      تعارض مالي: إجمالي الطلب ({totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ر.س)!
+                      تعارض مالي: إجمالي الطلب ({formatCurrency(totalAmount, shop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} {getCurrencySymbol(shop?.currency)})!
                     </p>
                     <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
                       لا يمكن تعديل السعر أو الكمية لقيمة تجعل إجمالي الطلب أقل مما تم قبضه فعلياً من العميل. يرجى تصحيح السعر/الكمية، أو إجراء سند استرداد للعميل من تفاصيل الطلب أولاً.
@@ -1311,7 +1312,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-black text-rose-800 text-sm">
-                    تعارض مالي يمنع الحفظ: إجمالي الطلب ({totalAmount} ر.س) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ر.س)!
+                    تعارض مالي يمنع الحفظ: إجمالي الطلب ({formatCurrency(totalAmount, shop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} {getCurrencySymbol(shop?.currency)})!
                   </p>
                   <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
                     يرجى الرجوع للخطوة السابقة وتصحيح سعر الثوب أو الكمية، أو إجراء سند استرداد للعميل أولاً.
@@ -1323,15 +1324,15 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             {/* Financials Summary */}
             <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-6 text-center sm:text-right flex-wrap">
-                {vatConfig.vatEnabled && (
+                {vatConfig.vatEnabled && shop?.currency !== 'YER' && (
                   <>
                     <div>
                       <span className="text-xs text-slate-500 block">قبل الضريبة:</span>
-                      <span className="font-bold text-base text-slate-700">{subtotalAmount} ر.س</span>
+                      <span className="font-bold text-base text-slate-700">{formatCurrency(subtotalAmount, shop?.currency)}</span>
                     </div>
                     <div>
                       <span className="text-xs text-blue-800 block">ضريبة ({vatConfig.vatRate}%):</span>
-                      <span className="font-bold text-base text-blue-900">{vatAmount} ر.س</span>
+                      <span className="font-bold text-base text-blue-900">{formatCurrency(vatAmount, shop?.currency)}</span>
                     </div>
                   </>
                 )}
@@ -1339,11 +1340,11 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <span className="text-xs text-slate-500 block">
                     {vatConfig.vatEnabled ? 'إجمالي شامل الضريبة:' : 'إجمالي المبلغ:'}
                   </span>
-                  <span className="font-black text-lg text-slate-900">{totalAmount} ر.س</span>
+                  <span className="font-black text-lg text-slate-900">{formatCurrency(totalAmount, shop?.currency)}</span>
                 </div>
                 <div>
                   <span className="text-xs text-emerald-700 block">العربون:</span>
-                  <span className="font-black text-lg text-emerald-700">{paidAmount} ر.س</span>
+                  <span className="font-black text-lg text-emerald-700">{paidAmount} {getCurrencySymbol(shop?.currency)}</span>
                   {paidAmount > 0 && (
                     <span className="text-[10px] text-emerald-800 font-bold block mt-0.5">
                       ({PAYMENT_METHOD_MAP[paymentMethod] || paymentMethod})
@@ -1352,7 +1353,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 </div>
                 <div>
                   <span className="text-xs text-[#1A365D] block">المتبقي:</span>
-                  <span className="font-black text-lg text-[#1A365D]">{remainingAmount} ر.س</span>
+                  <span className="font-black text-lg text-[#1A365D]">{remainingAmount} {getCurrencySymbol(shop?.currency)}</span>
                 </div>
               </div>
 

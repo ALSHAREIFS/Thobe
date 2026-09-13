@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatCurrency, getCurrencySymbol } from '../../utils/currencyFormatting';
 import { useShop } from '../../context/ShopContext';
 import { useAuth } from '../../context/AuthContext';
 import { ORDER_STATUS_LABELS } from '../../utils/presets';
@@ -290,22 +291,22 @@ export const DashboardView: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 w-full">
-              <div className="text-2xl font-black text-slate-900">{totalRevenue} ر.س</div>
+              <div className="text-2xl font-black text-slate-900">{totalRevenue} {getCurrencySymbol(shop?.currency)}</div>
               {canPayments && (
                 <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
                   <div className="flex items-center justify-between">
                     <span>تم التحصيل:</span>
-                    <b className="text-emerald-700 font-bold">{netCollected} ر.س</b>
+                    <b className="text-emerald-700 font-bold">{netCollected} {getCurrencySymbol(shop?.currency)}</b>
                   </div>
                   {totalRefunds > 0 && (
                     <div className="flex items-center justify-between text-rose-600">
                       <span>مستردات:</span>
-                      <b className="font-bold">{totalRefunds} ر.س</b>
+                      <b className="font-bold">{totalRefunds} {getCurrencySymbol(shop?.currency)}</b>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-stone-500 text-[10px]">
                     <span>متبقي التحصيل:</span>
-                    <span className="font-bold text-amber-800">{remainingUnpaid} ر.س</span>
+                    <span className="font-bold text-amber-800">{remainingUnpaid} {getCurrencySymbol(shop?.currency)}</span>
                   </div>
                 </div>
               )}

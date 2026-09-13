@@ -1,3 +1,4 @@
+import { formatCurrency, getCurrencySymbol } from '../utils/currencyFormatting';
 import {
   collection,
   doc,

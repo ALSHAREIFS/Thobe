@@ -1395,6 +1395,7 @@ export const TailorService = {
         orderNumber,
         shopId,
         taxSnapshot,
+        currencySnapshot: (orderInput as any).currencySnapshot || 'SAR',
         financialLocked: false,
         createdAt: now,
         updatedAt: now,

@@ -57,6 +57,7 @@ export const SettingsView: React.FC = () => {
   const [vatNumber, setVatNumber] = useState(currentShop?.taxNumber || currentShop?.vatNumber || '');
   const [crNumber, setCrNumber] = useState(currentShop?.crNumber || '');
   const [defaultDeliveryDays, setDefaultDeliveryDays] = useState(currentShop?.defaultDeliveryDays || 5);
+  const [currency, setCurrency] = useState<'SAR'|'YER'>((currentShop?.currency as 'SAR'|'YER') || 'SAR');
   // VAT & Tax Settings
   const [vatEnabled, setVatEnabled] = useState(currentShop?.vatEnabled ?? false);
   const [vatRegistrationNumber, setVatRegistrationNumber] = useState(currentShop?.vatRegistrationNumber || currentShop?.taxNumber || currentShop?.vatNumber || '');
@@ -103,6 +104,7 @@ export const SettingsView: React.FC = () => {
       setVatNumber(currentShop.taxNumber || currentShop.vatNumber || '');
       setCrNumber(currentShop.crNumber || '');
       setDefaultDeliveryDays(currentShop.defaultDeliveryDays || 5);
+        setCurrency((currentShop.currency as 'SAR'|'YER') || 'SAR');
       setVatEnabled(Boolean(currentShop.vatEnabled));
       setVatRegistrationNumber(currentShop.vatRegistrationNumber || currentShop.taxNumber || currentShop.vatNumber || '');
       setVatRate(typeof currentShop.vatRate === 'number' ? currentShop.vatRate : 15);

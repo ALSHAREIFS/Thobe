@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { formatCurrency, getCurrencySymbol } from '../utils/currencyFormatting';
 import { Customer, Order, OrderStatus, Payment, Refund, Shop, UserProfile, EmployeePermissions } from '../types';
 import { TailorService } from '../services/firebaseService';
 import { useAuth } from './AuthContext';
@@ -286,7 +287,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const newPay = await TailorService.addPayment(currentShop.shopId, data);
       await loadAllData();
-      showToast(`تم تسجيل سند قبض بمبلغ ${newPay.amount} ر.س`, 'success');
+      showToast(`تم تسجيل سند قبض بمبلغ ${newPay.amount} ${getCurrencySymbol(currentShop?.currency)}`, 'success');
       return newPay;
     } catch (err: any) {
       showToast(err.message || 'فشل تسجيل الدفعة', 'error');
@@ -299,7 +300,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const newRef = await TailorService.addRefund(currentShop.shopId, data);
       await loadAllData();
-      showToast(`تم تسجيل سند استرداد بمبلغ ${newRef.amount} ر.س بنجاح`, 'success');
+      showToast(`تم تسجيل سند استرداد بمبلغ ${newRef.amount} ${getCurrencySymbol(currentShop?.currency)} بنجاح`, 'success');
       return newRef;
     } catch (err: any) {
       showToast(err.message || 'فشل تسجيل سند الاسترداد', 'error');

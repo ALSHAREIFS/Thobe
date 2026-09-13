@@ -19,6 +19,7 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: EmployeePermissions = {
 export type ShopStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
 
 export type VatPriceMode = 'INCLUSIVE' | 'EXCLUSIVE';
+export type ShopCurrency = 'SAR' | 'YER';
 
 export interface OrderTaxSnapshot {
   vatEnabled: boolean;
@@ -99,7 +100,7 @@ export interface Shop {
   vatRegistrationNumber?: string; // الرقم الضريبي للمنشأة
   vatRate?: number; // نسبة الضريبة (مثال: 15)
   vatPriceMode?: VatPriceMode; // طريقة إدخال الأسعار (INCLUSIVE | EXCLUSIVE)
-  currency: string;
+  currency?: ShopCurrency | string;
   defaultDeliveryDays: number;
   termsAndConditions?: string;
   status: ShopStatus;
@@ -377,6 +378,7 @@ export interface Order {
   tailoringDetails: TailoringDetails;
   pricing: OrderPricing;
   taxSnapshot?: OrderTaxSnapshot;
+  currencySnapshot?: ShopCurrency | string;
   orderDate: string;
   deliveryDate: string;
   actualDeliveryDate?: string;
