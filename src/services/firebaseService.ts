@@ -502,7 +502,6 @@ export const TailorService = {
       address?: string;
       crNumber?: string;
       taxNumber?: string;
-      currency?: string;
       defaultDeliveryDays?: number;
       maxEmployees?: number;
       subscriptionPlan?: string;
@@ -684,7 +683,6 @@ export const TailorService = {
       crNumber?: string;
       taxNumber?: string;
       currency?: string;
-      defaultDeliveryDays?: number;
       termsAndConditions?: string;
     },
     ownerProfile: {

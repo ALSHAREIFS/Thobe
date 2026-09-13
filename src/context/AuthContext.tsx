@@ -361,6 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     currentUser,
     currentShop,
+    createShopForUser: async () => {},
     userShopRequest,
     firebaseUser,
     loading,

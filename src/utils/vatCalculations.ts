@@ -20,7 +20,6 @@ export interface ShopVatSettings {
   vatEnabled?: boolean;
   vatRegistrationNumber?: string;
   currency?: string;
-  country?: string;
   vatRate?: number; // e.g. 15 for 15%
   currency?: string;
   vatPriceMode?: VatPriceMode;

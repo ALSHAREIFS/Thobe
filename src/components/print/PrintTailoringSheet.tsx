@@ -223,7 +223,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
           <div className="text-left bg-stone-100 p-2.5 rounded-xl border border-stone-300">
             <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest flex items-center justify-between gap-1">
               <span>أمر تفصيل رقم</span>
-              {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) && (
+              {(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) && (
                 <span className="text-[8px] font-black text-blue-900 bg-blue-100 px-1 py-0.5 rounded border border-blue-200">
                   فاتورة ضريبية مبسطة
                 </span>
@@ -460,30 +460,30 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         {/* 7. FINANCIAL SUMMARY & SIGNATURE RECEIPT */}
         <div className="border-t-2 border-stone-900 pt-3">
           <div className="flex items-center justify-between gap-4">
-            <div className={`grid ${(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
-              {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) && (
+            <div className={`grid ${(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
+              {(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) && (
                 <>
                   <div className="bg-stone-50 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
                     <span className="text-[10px] text-stone-500 font-bold block">قبل الضريبة</span>
-                    <span className="font-black text-stone-900 text-sm">{vatSnapshot.subtotalAmount} {getCurrencySymbol(shop.currency)}</span>
+                    <span className="font-black text-stone-900 text-sm">{vatSnapshot.subtotalAmount} {getCurrencySymbol(currentShop?.currency)}</span>
                   </div>
                   <div className="bg-blue-50 p-2 rounded-lg border border-blue-200 flex flex-col justify-center">
                     <span className="text-[10px] text-blue-800 font-bold block">الضريبة ({vatSnapshot.vatRate}%)</span>
-                    <span className="font-black text-blue-950 text-sm">{vatSnapshot.vatAmount} {getCurrencySymbol(shop.currency)}</span>
+                    <span className="font-black text-blue-950 text-sm">{vatSnapshot.vatAmount} {getCurrencySymbol(currentShop?.currency)}</span>
                   </div>
                 </>
               )}
               <div className="bg-stone-100 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
                 <span className="text-[10px] text-stone-500 font-bold block">
-                  {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) ? 'الإجمالي شامل الضريبة' : 'إجمالي المبلغ'}
+                  {(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) ? 'الإجمالي شامل الضريبة' : 'إجمالي المبلغ'}
                 </span>
-                <span className="font-black text-stone-950 text-sm">{totalAmount} {getCurrencySymbol(shop.currency)}</span>
+                <span className="font-black text-stone-950 text-sm">{totalAmount} {getCurrencySymbol(currentShop?.currency)}</span>
               </div>
               <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-300 flex flex-col justify-center">
                 <span className="text-[10px] text-emerald-800 font-bold block">
                   {orderPayments.length > 1 ? 'إجمالي المقبوض' : 'العربون المدفوع'}
                 </span>
-                <span className="font-black text-emerald-950 text-sm">{grossPaid} {getCurrencySymbol(shop.currency)}</span>
+                <span className="font-black text-emerald-950 text-sm">{grossPaid} {getCurrencySymbol(currentShop?.currency)}</span>
                 {grossPaid > 0 ? (
                   <span className="text-[9px] text-emerald-900 font-black block mt-0.5 bg-emerald-100/90 px-1 py-0.5 rounded border border-emerald-200">
                     طريقة الدفع: {orderPayments[0] ? (PAYMENT_METHOD_MAP[orderPayments[0].method] || orderPayments[0].method) : (paymentMethodsSummary || 'نقدي')}
@@ -496,7 +496,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
               </div>
               <div className="bg-amber-50 p-2 rounded-lg border border-amber-300 flex flex-col justify-center">
                 <span className="text-[10px] text-amber-900 font-bold block">المتبقي للاستلام</span>
-                <span className="font-black text-amber-950 text-sm">{remainingAmount} {getCurrencySymbol(shop.currency)}</span>
+                <span className="font-black text-amber-950 text-sm">{remainingAmount} {getCurrencySymbol(currentShop?.currency)}</span>
               </div>
             </div>
 
@@ -522,7 +522,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
                   سجل سندات القبض والدفعات المعتمدة ({orderPayments.length}):
                 </span>
                 <span className="text-[10px] text-stone-600 font-bold">
-                  المسدد فعلياً: <b className="text-emerald-900">{orderPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0)} {getCurrencySymbol(shop.currency)}</b>
+                  المسدد فعلياً: <b className="text-emerald-900">{orderPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0)} {getCurrencySymbol(currentShop?.currency)}</b>
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -534,7 +534,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
                       className="flex items-center justify-between bg-emerald-50/60 border border-emerald-200 px-2.5 py-1 rounded-lg text-[10px]"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-stone-900">{pay.amount} {getCurrencySymbol(shop.currency)}</span>
+                        <span className="font-black text-stone-900">{pay.amount} {getCurrencySymbol(currentShop?.currency)}</span>
                         <span className="font-bold text-emerald-950 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-300">
                           طريقة الدفع: {methodLabel}
                         </span>
