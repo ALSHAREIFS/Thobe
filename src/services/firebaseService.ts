@@ -1378,46 +1378,36 @@ export const TailorService = {
       const paymentId = payRef ? payRef.id : '';
       const receiptNumber = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      const isFinancialLocked = Boolean(hasInitialPayment && initialPaymentMethod && orderInput.pricing && payRef);
+      // Safe creation: initialize with 0 paid and full remaining amount to respect backend rules
+      let pricingForOrder = orderInput.pricing;
+      if (orderInput.pricing && hasInitialPayment) {
+        pricingForOrder = {
+          ...orderInput.pricing,
+          paidAmount: 0,
+          remainingAmount: orderInput.pricing.totalAmount,
+        };
+      }
 
       const newOrder: Order = {
         ...orderDataToSave,
+        pricing: pricingForOrder,
         orderId,
         orderNumber,
         shopId,
         taxSnapshot,
-        financialLocked: isFinancialLocked,
+        financialLocked: false,
         createdAt: now,
         updatedAt: now,
         statusHistory: [
           {
             status: orderInput.status || 'NEW',
             timestamp: now,
-            note: 'تم إنشاء الطلب وتسجيل تفاصيل الثوب والمقاسات',
+            note: 'تم إنشاء الطلب وتسجيل القياسات الأولية بنجاح',
             updatedBy: orderInput.createdBy,
             updatedByName: orderInput.createdByName,
           },
         ],
       };
-
-      let newPayment: Payment | null = null;
-      if (hasInitialPayment && initialPaymentMethod && orderInput.pricing && payRef) {
-        newPayment = {
-          paymentId,
-          shopId,
-          orderId,
-          orderNumber,
-          customerId: orderInput.customerId,
-          customerName: orderInput.customerName,
-          amount: orderInput.pricing.paidAmount,
-          method: initialPaymentMethod,
-          receiptNumber,
-          createdBy: orderInput.createdBy,
-          createdByName: orderInput.createdByName,
-          notes: 'دفعة مقدمة / عربون عند فتح الطلب',
-          createdAt: now,
-        };
-      }
 
       // Execute Firestore Atomic Transaction
       await runTransaction(db, async (transaction) => {
@@ -1427,10 +1417,7 @@ export const TailorService = {
         // Step 2: Write Order document
         transaction.set(orderRef, newOrder);
 
-        // Step 3: Write Initial Payment document if paidAmount > 0
-        if (payRef && newPayment) {
-          transaction.set(payRef, newPayment);
-        }
+        // Step 3: Removed direct payment write to respect new Firestore rules
 
         // Step 4: Update Customer statistics atomically
         if (customerSnap.exists()) {
@@ -1444,6 +1431,34 @@ export const TailorService = {
           transaction.update(customerRef, updatedStats);
         }
       });
+
+      // Call Cloud Function to process initial payment if applicable
+      if (hasInitialPayment && initialPaymentMethod && orderInput.pricing) {
+        try {
+          const addPayment = httpsCallable(functions, 'addPayment');
+          await addPayment({
+            shopId,
+            paymentData: {
+              orderId,
+              amount: orderInput.pricing.paidAmount,
+              method: initialPaymentMethod,
+              notes: 'دفعة أولى / مقدم عند إنشاء الطلب',
+              receiptNumber,
+            }
+          });
+          
+          // If successful, update the returned object to reflect the payment
+          if (newOrder.pricing) {
+            newOrder.pricing.paidAmount = orderInput.pricing.paidAmount;
+            newOrder.pricing.remainingAmount = Math.max(0, newOrder.pricing.totalAmount - newOrder.pricing.paidAmount);
+            newOrder.financialLocked = true;
+          }
+        } catch (paymentErr: any) {
+          console.error('Failed to process initial payment via Cloud Function:', paymentErr);
+          // Return the order but warn the user that payment failed
+          throw new Error(`تم حفظ الطلب بنجاح ولكن فشل تسجيل الدفعة الأولى. يرجى إضافة الدفعة يدوياً. (السبب: ${paymentErr.message})`);
+        }
+      }
 
       return newOrder;
     } catch (err: any) {
