@@ -47,6 +47,7 @@ interface AuthContextType {
     password: string;
     notes?: string;
   }) => Promise<ShopRequest>;
+  createShopForUser: (data: any) => Promise<void>;
   updateShopSettings: (data: Partial<Shop>) => Promise<Shop>;
   refreshProfile: () => Promise<void>;
   clearAuthError: () => void;

@@ -6,7 +6,11 @@ export const OnboardingShopModal: React.FC = () => {
   const { createShopForUser, signOut, authError, clearAuthError } = useAuth();
   const [shopName, setShopName] = useState('');
   const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState<'SA'|'YE'>('SA');
   const [city, setCity] = useState('الرياض');
+  const SAUDI_CITIES = ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'الطائف', 'أبها', 'تبوك', 'بريدة', 'حائل'];
+  const YEMEN_CITIES = ['صنعاء', 'عدن', 'تعز', 'الحديدة', 'إب', 'المكلا', 'سيئون', 'ذمار', 'مأرب', 'صعدة'];
+  const currentCityList = country === 'YE' ? YEMEN_CITIES : SAUDI_CITIES;
   const [address, setAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -20,7 +24,9 @@ export const OnboardingShopModal: React.FC = () => {
       await createShopForUser({
         shopName,
         phone,
-        city,
+          country,
+          currency: country === 'YE' ? 'YER' : 'SAR',
+          city,
         address,
       });
     } catch (err: any) {
@@ -79,18 +85,35 @@ export const OnboardingShopModal: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">المدينة *</label>
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-400 font-bold"
-              >
-                {['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'القصيم', 'أبها', 'تبوك'].map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+                          <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">الدولة *</label>
+                <select
+                  value={country}
+                  onChange={(e) => {
+                    const newCountry = e.target.value as 'SA'|'YE';
+                    setCountry(newCountry);
+                    setCity(newCountry === 'YE' ? 'صنعاء' : 'الرياض');
+                  }}
+                  className="w-full px-3 py-2 mb-3 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-400 font-bold"
+                >
+                  <option value="SA">المملكة العربية السعودية</option>
+                  <option value="YE">الجمهورية اليمنية</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">المدينة *</label>
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-400 font-bold"
+                >
+                  {currentCityList.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value="أخرى">أخرى (إدخال يدوي)</option>
+                </select>
+              </div>
           </div>
 
           <div>
