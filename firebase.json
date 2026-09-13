@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "thobe",
     "public": "dist",
     "ignore": [
       "firebase.json",

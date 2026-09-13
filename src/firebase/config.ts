@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import appletConfig from '../../firebase-applet-config.json';
 
@@ -20,8 +20,8 @@ export const firebaseConfig = {
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = appletConfig.firestoreDatabaseId && appletConfig.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, appletConfig.firestoreDatabaseId)
-  : getFirestore(app);
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, appletConfig.firestoreDatabaseId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 export const storage = getStorage(app);
 import { getFunctions } from 'firebase/functions';
 export const functions = getFunctions(app, 'us-central1'); // Assuming default region
