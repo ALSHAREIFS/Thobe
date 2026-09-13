@@ -383,9 +383,9 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             <div className="text-stone-600 mt-0.5">
               اللون: {td.fabric.color || 'غير محدد'} {td.fabric.colorCode ? `(${td.fabric.colorCode})` : ''} | الكود: {td.fabric.code || 'بدون'}
             </div>
-            {td.fabric.notes && (
+            {td.fabric.notes?.trim() && (
               <div className="text-[10px] text-amber-900 font-bold mt-1 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200">
-                ملاحظات القماش: {td.fabric.notes}
+                ملاحظات القماش: {td.fabric.notes.trim()}
               </div>
             )}
           </div>
@@ -395,63 +395,63 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             <div className="text-stone-600 mt-0.5">
               أسفل الثوب: {td.bottom.name || 'غير محدد'} | {td.specialOptions?.doubleStitching ? 'درزة دبل' : 'درزة عادية'}
             </div>
-            {td.garmentNotes && (
+            {td.garmentNotes?.trim() && (
               <div className="text-[10px] text-amber-900 font-bold mt-1 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200">
-                ملاحظات القصة: {td.garmentNotes}
+                ملاحظات القصة: {td.garmentNotes.trim()}
               </div>
             )}
           </div>
         </div>
 
         {/* 6. TAILOR NOTES & INSTRUCTIONS */}
-        {(td.generalNotes ||
-          order.notes ||
-          td.garmentNotes ||
-          td.collar.notes ||
-          td.sleeves.notes ||
-          td.pockets.notes ||
-          td.chest.notes ||
-          td.buttons.notes ||
-          td.bottom.notes ||
-          td.embroidery?.notes ||
-          td.specialOptions?.customNotes) && (
+        {(td.generalNotes?.trim() ||
+          order.notes?.trim() ||
+          td.garmentNotes?.trim() ||
+          td.collar?.notes?.trim() ||
+          td.sleeves?.notes?.trim() ||
+          td.pockets?.notes?.trim() ||
+          td.chest?.notes?.trim() ||
+          td.buttons?.notes?.trim() ||
+          td.bottom?.notes?.trim() ||
+          td.embroidery?.notes?.trim() ||
+          td.specialOptions?.customNotes?.trim()) && (
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-300 mb-4 text-xs">
             <span className="font-black text-amber-950 block text-[11px] mb-1">
               ملاحظات وتفاصيل الخياطة المخصصة:
             </span>
             <div className="space-y-1 text-stone-800 font-bold text-[11px]">
-              {td.generalNotes && (
-                <div>• <span className="text-amber-950 font-black">عام:</span> {td.generalNotes}</div>
+              {td.generalNotes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">عام:</span> {td.generalNotes.trim()}</div>
               )}
-              {td.garmentNotes && (
-                <div>• <span className="text-amber-950 font-black">القصة والنمط:</span> {td.garmentNotes}</div>
+              {td.garmentNotes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">القصة والنمط:</span> {td.garmentNotes.trim()}</div>
               )}
-              {td.collar.notes && (
-                <div>• <span className="text-amber-950 font-black">الياقة:</span> {td.collar.notes}</div>
+              {td.collar?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">الياقة:</span> {td.collar.notes.trim()}</div>
               )}
-              {td.sleeves.notes && (
-                <div>• <span className="text-amber-950 font-black">الأكمام والكبك:</span> {td.sleeves.notes}</div>
+              {td.sleeves?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">الأكمام والكبك:</span> {td.sleeves.notes.trim()}</div>
               )}
-              {td.pockets.notes && (
-                <div>• <span className="text-amber-950 font-black">الجيوب:</span> {td.pockets.notes}</div>
+              {td.pockets?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">الجيوب:</span> {td.pockets.notes.trim()}</div>
               )}
-              {td.chest.notes && (
-                <div>• <span className="text-amber-950 font-black">الصدر والجبزور:</span> {td.chest.notes}</div>
+              {td.chest?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">الصدر والجبزور:</span> {td.chest.notes.trim()}</div>
               )}
-              {td.buttons.notes && (
-                <div>• <span className="text-amber-950 font-black">الأزرار:</span> {td.buttons.notes}</div>
+              {td.buttons?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">الأزرار:</span> {td.buttons.notes.trim()}</div>
               )}
-              {td.bottom.notes && (
-                <div>• <span className="text-amber-950 font-black">أسفل الثوب:</span> {td.bottom.notes}</div>
+              {td.bottom?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">أسفل الثوب:</span> {td.bottom.notes.trim()}</div>
               )}
-              {td.embroidery?.notes && (
-                <div>• <span className="text-amber-950 font-black">التطريز:</span> {td.embroidery.notes}</div>
+              {td.embroidery?.notes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">التطريز:</span> {td.embroidery.notes.trim()}</div>
               )}
-              {td.specialOptions?.customNotes && (
-                <div>• <span className="text-amber-950 font-black">إضافات خاصة:</span> {td.specialOptions.customNotes}</div>
+              {td.specialOptions?.customNotes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">إضافات خاصة:</span> {td.specialOptions.customNotes.trim()}</div>
               )}
-              {order.notes && !td.generalNotes && (
-                <div>• <span className="text-amber-950 font-black">ملاحظات الطلب:</span> {order.notes}</div>
+              {order.notes?.trim() && !td.generalNotes?.trim() && (
+                <div>• <span className="text-amber-950 font-black">ملاحظات الطلب:</span> {order.notes.trim()}</div>
               )}
             </div>
           </div>

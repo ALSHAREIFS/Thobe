@@ -189,7 +189,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
       } else {
         setPaidAmount(0);
       }
-      setOrderNotes(`مكرر من الطلب ${initialTemplateOrder.orderNumber}`);
+      setOrderNotes(initialTemplateOrder.notes || '');
       const existingCust = customers.find(c => c.customerId === initialTemplateOrder.customerId);
       if (existingCust) {
         setSelectedCustomer(existingCust);
@@ -1247,9 +1247,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <div className="text-slate-600 text-[11px]">
                     {tailoringDetails.fabric.color} {tailoringDetails.fabric.colorCode ? `(${tailoringDetails.fabric.colorCode})` : ''}
                   </div>
-                  {tailoringDetails.fabric.notes && (
+                  {tailoringDetails.fabric.notes?.trim() && (
                     <div className="text-[10px] text-amber-900 font-bold bg-amber-50 p-1 rounded">
-                      ملاحظة قماش: {tailoringDetails.fabric.notes}
+                      ملاحظة قماش: {tailoringDetails.fabric.notes.trim()}
                     </div>
                   )}
                 </div>
@@ -1258,10 +1258,10 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <span className="text-slate-400 block text-[11px]">الياقة والكم:</span>
                   <div className="font-bold text-slate-900">{tailoringDetails.collar.name} ({tailoringDetails.collar.stiffness === 'stiff' ? 'قاسية' : 'وسط'})</div>
                   <div className="text-slate-600 text-[11px]">{tailoringDetails.sleeves.name}</div>
-                  {(tailoringDetails.collar.notes || tailoringDetails.sleeves.notes) && (
+                  {(tailoringDetails.collar.notes?.trim() || tailoringDetails.sleeves.notes?.trim()) && (
                     <div className="text-[10px] text-stone-700">
-                      {tailoringDetails.collar.notes && <div>• ياقة: {tailoringDetails.collar.notes}</div>}
-                      {tailoringDetails.sleeves.notes && <div>• أكمام: {tailoringDetails.sleeves.notes}</div>}
+                      {tailoringDetails.collar.notes?.trim() && <div>• ياقة: {tailoringDetails.collar.notes.trim()}</div>}
+                      {tailoringDetails.sleeves.notes?.trim() && <div>• أكمام: {tailoringDetails.sleeves.notes.trim()}</div>}
                     </div>
                   )}
                 </div>
@@ -1277,30 +1277,30 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                         : 'جيب صدر عادي')}
                   </div>
                   <div className="text-slate-600 text-[11px]">{tailoringDetails.buttons.name}</div>
-                  {(tailoringDetails.pockets.notes || tailoringDetails.buttons.notes || tailoringDetails.chest.notes) && (
+                  {(tailoringDetails.pockets.notes?.trim() || tailoringDetails.buttons.notes?.trim() || tailoringDetails.chest.notes?.trim()) && (
                     <div className="text-[10px] text-stone-700">
-                      {tailoringDetails.chest.notes && <div>• صدر: {tailoringDetails.chest.notes}</div>}
-                      {tailoringDetails.pockets.notes && <div>• جيوب: {tailoringDetails.pockets.notes}</div>}
-                      {tailoringDetails.buttons.notes && <div>• أزرار: {tailoringDetails.buttons.notes}</div>}
+                      {tailoringDetails.chest.notes?.trim() && <div>• صدر: {tailoringDetails.chest.notes.trim()}</div>}
+                      {tailoringDetails.pockets.notes?.trim() && <div>• جيوب: {tailoringDetails.pockets.notes.trim()}</div>}
+                      {tailoringDetails.buttons.notes?.trim() && <div>• أزرار: {tailoringDetails.buttons.notes.trim()}</div>}
                     </div>
                   )}
                 </div>
               </div>
 
               {/* General or Additional Notes in Review */}
-              {(tailoringDetails.garmentNotes ||
-                tailoringDetails.bottom.notes ||
-                tailoringDetails.embroidery?.notes ||
-                tailoringDetails.generalNotes ||
-                orderNotes) && (
+              {(tailoringDetails.garmentNotes?.trim() ||
+                tailoringDetails.bottom.notes?.trim() ||
+                tailoringDetails.embroidery?.notes?.trim() ||
+                tailoringDetails.generalNotes?.trim() ||
+                orderNotes?.trim()) && (
                 <div className="mt-3 p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs">
                   <span className="font-bold text-amber-900 block mb-1">الملاحظات المدونة على الطلب:</span>
                   <div className="space-y-0.5 text-stone-800 text-[11px]">
-                    {tailoringDetails.garmentNotes && <div>• <b>قصة الثوب:</b> {tailoringDetails.garmentNotes}</div>}
-                    {tailoringDetails.bottom.notes && <div>• <b>أسفل الثوب:</b> {tailoringDetails.bottom.notes}</div>}
-                    {tailoringDetails.embroidery?.notes && <div>• <b>التطريز:</b> {tailoringDetails.embroidery.notes}</div>}
-                    {tailoringDetails.generalNotes && <div>• <b>عام:</b> {tailoringDetails.generalNotes}</div>}
-                    {orderNotes && <div>• <b>ملاحظات إضافية:</b> {orderNotes}</div>}
+                    {tailoringDetails.garmentNotes?.trim() && <div>• <b>قصة الثوب:</b> {tailoringDetails.garmentNotes.trim()}</div>}
+                    {tailoringDetails.bottom.notes?.trim() && <div>• <b>أسفل الثوب:</b> {tailoringDetails.bottom.notes.trim()}</div>}
+                    {tailoringDetails.embroidery?.notes?.trim() && <div>• <b>التطريز:</b> {tailoringDetails.embroidery.notes.trim()}</div>}
+                    {tailoringDetails.generalNotes?.trim() && <div>• <b>عام:</b> {tailoringDetails.generalNotes.trim()}</div>}
+                    {orderNotes?.trim() && <div>• <b>ملاحظات إضافية:</b> {orderNotes.trim()}</div>}
                   </div>
                 </div>
               )}

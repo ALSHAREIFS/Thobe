@@ -643,9 +643,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <div className="text-stone-600">
                   {td?.fabric?.color || 'غير محدد'} {td?.fabric?.colorCode ? `(${td.fabric.colorCode})` : ''} {td?.fabric?.type ? `(${td.fabric.type})` : ''}
                 </div>
-                {td?.fabric?.notes && (
+                {td?.fabric?.notes?.trim() && (
                   <div className="text-[11px] text-amber-900 font-bold mt-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    ملاحظة القماش: {td.fabric.notes}
+                    ملاحظة القماش: {td.fabric.notes.trim()}
                   </div>
                 )}
               </div>
@@ -654,10 +654,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <span className="text-stone-400 block text-[11px]">الياقة والكم:</span>
                 <div className="font-bold text-stone-900">{td?.collar?.name || 'غير محدد'} {td?.collar?.stiffness ? `(${td.collar.stiffness === 'stiff' ? 'قاسية' : td.collar.stiffness === 'medium' ? 'وسط' : 'طرية'})` : ''}</div>
                 <div className="text-stone-600">{td?.sleeves?.name || 'غير محدد'} {td?.sleeves?.cuffWidth ? `(${td.sleeves.cuffWidth} سم)` : ''}</div>
-                {(td?.collar?.notes || td?.sleeves?.notes) && (
+                {(td?.collar?.notes?.trim() || td?.sleeves?.notes?.trim()) && (
                   <div className="text-[11px] text-stone-700 font-medium mt-1">
-                    {td?.collar?.notes && <div>• ياقة: {td.collar.notes}</div>}
-                    {td?.sleeves?.notes && <div>• أكمام: {td.sleeves.notes}</div>}
+                    {td?.collar?.notes?.trim() && <div>• ياقة: {td.collar.notes.trim()}</div>}
+                    {td?.sleeves?.notes?.trim() && <div>• أكمام: {td.sleeves.notes.trim()}</div>}
                   </div>
                 )}
               </div>
@@ -679,31 +679,31 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       ? 'بدون جيب'
                       : 'غير محدد')}
                 </div>
-                {(td?.chest?.notes || td?.pockets?.notes) && (
+                {(td?.chest?.notes?.trim() || td?.pockets?.notes?.trim()) && (
                   <div className="text-[11px] text-stone-700 font-medium mt-1">
-                    {td?.chest?.notes && <div>• صدر: {td.chest.notes}</div>}
-                    {td?.pockets?.notes && <div>• جيوب: {td.pockets.notes}</div>}
+                    {td?.chest?.notes?.trim() && <div>• صدر: {td.chest.notes.trim()}</div>}
+                    {td?.pockets?.notes?.trim() && <div>• جيوب: {td.pockets.notes.trim()}</div>}
                   </div>
                 )}
               </div>
             </div>
 
             {/* General & Additional Branch Notes */}
-            {(td?.garmentNotes ||
-              td?.buttons?.notes ||
-              td?.bottom?.notes ||
-              td?.embroidery?.notes ||
-              td?.generalNotes ||
-              order?.notes) && (
+            {(td?.garmentNotes?.trim() ||
+              td?.buttons?.notes?.trim() ||
+              td?.bottom?.notes?.trim() ||
+              td?.embroidery?.notes?.trim() ||
+              td?.generalNotes?.trim() ||
+              order?.notes?.trim()) && (
               <div className="mt-3 p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs">
                 <span className="font-black text-amber-950 block mb-1">الملاحظات المكتوبة للتفصيل:</span>
                 <div className="space-y-0.5 text-stone-800">
-                  {td?.garmentNotes && <div>• <b>قصة الثوب:</b> {td.garmentNotes}</div>}
-                  {td?.buttons?.notes && <div>• <b>الأزرار:</b> {td.buttons.notes}</div>}
-                  {td?.bottom?.notes && <div>• <b>أسفل الثوب:</b> {td.bottom.notes}</div>}
-                  {td?.embroidery?.notes && <div>• <b>التطريز:</b> {td.embroidery.notes}</div>}
-                  {td?.generalNotes && <div>• <b>ملاحظات عامة:</b> {td.generalNotes}</div>}
-                  {order?.notes && <div>• <b>ملاحظات الطلب:</b> {order.notes}</div>}
+                  {td?.garmentNotes?.trim() && <div>• <b>قصة الثوب:</b> {td.garmentNotes.trim()}</div>}
+                  {td?.buttons?.notes?.trim() && <div>• <b>الأزرار:</b> {td.buttons.notes.trim()}</div>}
+                  {td?.bottom?.notes?.trim() && <div>• <b>أسفل الثوب:</b> {td.bottom.notes.trim()}</div>}
+                  {td?.embroidery?.notes?.trim() && <div>• <b>التطريز:</b> {td.embroidery.notes.trim()}</div>}
+                  {td?.generalNotes?.trim() && <div>• <b>ملاحظات عامة:</b> {td.generalNotes.trim()}</div>}
+                  {order?.notes?.trim() && <div>• <b>ملاحظات الطلب:</b> {order.notes.trim()}</div>}
                 </div>
               </div>
             )}

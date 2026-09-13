@@ -78,7 +78,7 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                 type: 'قماش خارجي من العميل',
                 color: fabric.color && fabric.color !== 'غير محدد' ? fabric.color : 'حسب قماش العميل',
                 season: 'all',
-                notes: fabric.notes || 'قماش مستلم مباشرة من العميل',
+                notes: fabric.notes || '',
               });
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -102,7 +102,7 @@ export const FabricSelector: React.FC<FabricSelectorProps> = ({ fabric, onChange
                 type: 'تفصيل وخياطة فقط',
                 color: 'غير محدد',
                 season: 'all',
-                notes: fabric.notes || 'تفصيل فقط بدون احتساب القماش من المحل',
+                notes: fabric.notes || '',
               });
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
