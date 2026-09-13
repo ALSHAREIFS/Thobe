@@ -23,6 +23,8 @@ export const db = appletConfig.firestoreDatabaseId && appletConfig.firestoreData
   ? getFirestore(app, appletConfig.firestoreDatabaseId)
   : getFirestore(app);
 export const storage = getStorage(app);
+import { getFunctions } from 'firebase/functions';
+export const functions = getFunctions(app, 'us-central1'); // Assuming default region
 export const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 

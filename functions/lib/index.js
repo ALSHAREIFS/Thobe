@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupRestoreJob = exports.executeRestoreJob = exports.initiateRestoreUpload = void 0;
+exports.addRefund = exports.addPayment = exports.cleanupRestoreJob = exports.executeRestoreJob = exports.initiateRestoreUpload = void 0;
 const functions = __importStar(require("firebase-functions"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -111,5 +111,200 @@ exports.cleanupRestoreJob = functions.https.onCall(async (data, context) => {
         // ignore if already deleted
     }
     return { success: true };
+});
+// ============================================================================
+// CONCURRENCY-SAFE FINANCIAL FUNCTIONS
+// ============================================================================
+async function canAccessPayments(shopId, uid, context) {
+    var _a;
+    if (isSuperAdmin(context))
+        return true;
+    if (!uid)
+        return false;
+    const shopDoc = await db.collection('shops').doc(shopId).get();
+    if (!shopDoc.exists)
+        return false;
+    const shopData = shopDoc.data();
+    if ((shopData === null || shopData === void 0 ? void 0 : shopData.status) !== 'ACTIVE')
+        return false;
+    if ((shopData === null || shopData === void 0 ? void 0 : shopData.ownerUid) === uid)
+        return true;
+    const userDoc = await db.collection(`shops/${shopId}/users`).doc(uid).get();
+    if (!userDoc.exists)
+        return false;
+    const userData = userDoc.data();
+    if ((userData === null || userData === void 0 ? void 0 : userData.role) === 'SHOP' && (userData === null || userData === void 0 ? void 0 : userData.isActive))
+        return true;
+    if ((userData === null || userData === void 0 ? void 0 : userData.role) === 'EMPLOYEE' && (userData === null || userData === void 0 ? void 0 : userData.isActive) && ((_a = userData === null || userData === void 0 ? void 0 : userData.permissions) === null || _a === void 0 ? void 0 : _a.payments) === true)
+        return true;
+    return false;
+}
+exports.addPayment = functions.https.onCall(async (data, context) => {
+    const { shopId, paymentData } = data;
+    if (!context.auth)
+        throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+    const uid = context.auth.uid;
+    if (!shopId || !paymentData || !paymentData.orderId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required fields.');
+    }
+    const hasAccess = await canAccessPayments(shopId, uid, context);
+    if (!hasAccess)
+        throw new functions.https.HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
+    if (typeof paymentData.amount !== 'number' || isNaN(paymentData.amount) || paymentData.amount <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Payment amount must be a positive number.');
+    }
+    const orderRef = db.collection(`shops/${shopId}/orders`).doc(paymentData.orderId);
+    const payRef = db.collection(`shops/${shopId}/payments`).doc();
+    const now = new Date().toISOString();
+    const receiptNumber = paymentData.receiptNumber || `REC-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newPayment = Object.assign(Object.assign({}, paymentData), { paymentId: payRef.id, shopId,
+        receiptNumber, createdAt: now });
+    try {
+        await db.runTransaction(async (transaction) => {
+            var _a;
+            const orderSnap = await transaction.get(orderRef);
+            if (!orderSnap.exists) {
+                throw new functions.https.HttpsError('not-found', 'Order not found.');
+            }
+            const orderData = orderSnap.data();
+            if (!orderData)
+                throw new functions.https.HttpsError("not-found", "Order data is missing.");
+            if (orderData.status === 'CANCELLED') {
+                throw new functions.https.HttpsError('failed-precondition', 'Cannot add payment to a cancelled order.');
+            }
+            const orderId = orderSnap.id;
+            const orderNumber = orderData.orderNumber;
+            const payments = new Map();
+            const p1 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderId', '==', orderId));
+            p1.forEach(d => payments.set(d.id, d.data()));
+            if (orderNumber) {
+                const p2 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderId', '==', orderNumber));
+                p2.forEach(d => payments.set(d.id, d.data()));
+                const p3 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderNumber', '==', orderNumber));
+                p3.forEach(d => payments.set(d.id, d.data()));
+            }
+            let grossPaid = 0;
+            payments.forEach(p => { grossPaid += p.amount || 0; });
+            const refunds = new Map();
+            const r1 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderId', '==', orderId));
+            r1.forEach(d => refunds.set(d.id, d.data()));
+            if (orderNumber) {
+                const r2 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderId', '==', orderNumber));
+                r2.forEach(d => refunds.set(d.id, d.data()));
+                const r3 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderNumber', '==', orderNumber));
+                r3.forEach(d => refunds.set(d.id, d.data()));
+            }
+            let grossRefunded = 0;
+            refunds.forEach(r => { grossRefunded += r.amount || 0; });
+            const totalAmount = ((_a = orderData.pricing) === null || _a === void 0 ? void 0 : _a.totalAmount) || 0;
+            const netPaid = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
+            const remaining = Math.max(0, Math.round((totalAmount - netPaid) * 100) / 100);
+            if (paymentData.amount > remaining) {
+                throw new functions.https.HttpsError('failed-precondition', `Payment amount (${paymentData.amount}) exceeds remaining amount (${remaining}).`);
+            }
+            const newGrossPaid = Math.round((grossPaid + paymentData.amount) * 100) / 100;
+            const newNetPaid = Math.max(0, Math.round((newGrossPaid - grossRefunded) * 100) / 100);
+            const newRemaining = Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
+            transaction.set(payRef, newPayment);
+            transaction.update(orderRef, {
+                'pricing.paidAmount': newGrossPaid,
+                'pricing.remainingAmount': newRemaining,
+                financialLocked: true,
+                updatedAt: now,
+                _financialVersion: firestore_1.FieldValue.increment(1)
+            });
+        });
+        return newPayment;
+    }
+    catch (err) {
+        if (err.errorInfo && err.errorInfo.code)
+            throw err;
+        throw new functions.https.HttpsError('internal', err.message || 'Unknown error');
+    }
+});
+exports.addRefund = functions.https.onCall(async (data, context) => {
+    const { shopId, refundData } = data;
+    if (!context.auth)
+        throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+    const uid = context.auth.uid;
+    if (!shopId || !refundData || !refundData.orderId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required fields.');
+    }
+    const hasAccess = await canAccessPayments(shopId, uid, context);
+    if (!hasAccess)
+        throw new functions.https.HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
+    if (typeof refundData.amount !== 'number' || isNaN(refundData.amount) || refundData.amount <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Refund amount must be a positive number.');
+    }
+    const refundId = refundData.refundId || db.collection(`shops/${shopId}/refunds`).doc().id;
+    const orderRef = db.collection(`shops/${shopId}/orders`).doc(refundData.orderId);
+    const refundRef = db.collection(`shops/${shopId}/refunds`).doc(refundId);
+    const now = new Date().toISOString();
+    const newRefund = Object.assign(Object.assign({}, refundData), { refundId,
+        shopId, createdAt: now });
+    try {
+        await db.runTransaction(async (transaction) => {
+            var _a;
+            const existingRefund = await transaction.get(refundRef);
+            if (existingRefund.exists) {
+                throw new functions.https.HttpsError('already-exists', 'Refund already processed.');
+            }
+            const orderSnap = await transaction.get(orderRef);
+            if (!orderSnap.exists) {
+                throw new functions.https.HttpsError('not-found', 'Order not found.');
+            }
+            const orderData = orderSnap.data();
+            if (!orderData)
+                throw new functions.https.HttpsError("not-found", "Order data is missing.");
+            const orderId = orderSnap.id;
+            const orderNumber = orderData.orderNumber;
+            const payments = new Map();
+            const p1 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderId', '==', orderId));
+            p1.forEach(d => payments.set(d.id, d.data()));
+            if (orderNumber) {
+                const p2 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderId', '==', orderNumber));
+                p2.forEach(d => payments.set(d.id, d.data()));
+                const p3 = await transaction.get(db.collection(`shops/${shopId}/payments`).where('orderNumber', '==', orderNumber));
+                p3.forEach(d => payments.set(d.id, d.data()));
+            }
+            let grossPaid = 0;
+            payments.forEach(p => { grossPaid += p.amount || 0; });
+            const refunds = new Map();
+            const r1 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderId', '==', orderId));
+            r1.forEach(d => refunds.set(d.id, d.data()));
+            if (orderNumber) {
+                const r2 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderId', '==', orderNumber));
+                r2.forEach(d => refunds.set(d.id, d.data()));
+                const r3 = await transaction.get(db.collection(`shops/${shopId}/refunds`).where('orderNumber', '==', orderNumber));
+                r3.forEach(d => refunds.set(d.id, d.data()));
+            }
+            let grossRefunded = 0;
+            refunds.forEach(r => { grossRefunded += r.amount || 0; });
+            const netPaid = Math.max(0, Math.round((grossPaid - grossRefunded) * 100) / 100);
+            const maxRefundable = netPaid;
+            if (refundData.amount > maxRefundable) {
+                throw new functions.https.HttpsError('failed-precondition', `Refund amount (${refundData.amount}) exceeds maximum refundable amount (${maxRefundable}).`);
+            }
+            const newGrossRefunded = Math.round((grossRefunded + refundData.amount) * 100) / 100;
+            const newNetPaid = Math.max(0, Math.round((grossPaid - newGrossRefunded) * 100) / 100);
+            const totalAmount = ((_a = orderData.pricing) === null || _a === void 0 ? void 0 : _a.totalAmount) || 0;
+            const newRemaining = Math.max(0, Math.round((totalAmount - newNetPaid) * 100) / 100);
+            transaction.set(refundRef, newRefund);
+            transaction.update(orderRef, {
+                'pricing.refundedAmount': newGrossRefunded,
+                'pricing.paidAmount': grossPaid,
+                'pricing.remainingAmount': newRemaining,
+                financialLocked: true,
+                updatedAt: now,
+                _financialVersion: firestore_1.FieldValue.increment(1)
+            });
+        });
+        return newRefund;
+    }
+    catch (err) {
+        if (err.errorInfo && err.errorInfo.code)
+            throw err;
+        throw new functions.https.HttpsError('internal', err.message || 'Unknown error');
+    }
 });
 //# sourceMappingURL=index.js.map

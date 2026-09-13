@@ -17,7 +17,8 @@ import {
 } from 'firebase/firestore';
 import { initializeApp as initSecondaryApp, deleteApp } from 'firebase/app';
 import { getAuth as getSecondaryAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
-import { auth, db, firebaseConfig } from '../firebase/config';
+import { auth, db, firebaseConfig, functions } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import {
   Customer,
   MeasurementRecord,
@@ -1667,67 +1668,10 @@ export const TailorService = {
       if (typeof data.amount !== 'number' || isNaN(data.amount) || data.amount <= 0) {
         throw new Error('مبلغ الدفعة يجب أن يكون رقماً موجباً أكبر من الصفر.');
       }
-
-      const orderRef = doc(db, `shops/${shopId}/orders`, data.orderId);
-      const payRef = doc(collection(db, `shops/${shopId}/payments`));
-      const paymentId = payRef.id;
-      const now = new Date().toISOString();
-      const receiptNumber = data.receiptNumber || `REC-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      const newPayment: Payment = {
-        ...data,
-        paymentId,
-        shopId,
-        receiptNumber,
-        createdAt: now,
-      };
-
-      await runTransaction(db, async (transaction) => {
-        const orderSnap = await transaction.get(orderRef);
-        if (!orderSnap.exists()) {
-          throw new Error('طلب التفصيل المرتبط بالدفعة غير موجود في سجلات المتجر.');
-        }
-
-        const orderData = orderSnap.data() as Order;
-
-        // 1. Canonical Guard: CANCELLED orders must NEVER accept payments
-        if (orderData.status === 'CANCELLED') {
-          throw new Error('لا يمكن إضافة دفعة مالية لطلب ملغي.');
-        }
-
-        // 2. Fetch linked ledger documents
-        const ledgerDocs = await getLinkedOrderDocs(shopId, data.orderId, orderData.orderNumber);
-
-        // 3. Compute canonical ledger financials
-        const financials = calculateOrderFinancials(
-          orderData,
-          ledgerDocs.payments,
-          ledgerDocs.refunds
-        );
-
-        if (data.amount > financials.activeRemaining) {
-          throw new Error(
-            `المبلغ المدخل (${data.amount} ر.س) أكبر من المبلغ المتبقي الفعلي على الطلب (${financials.activeRemaining} ر.س).`
-          );
-        }
-
-        const newGrossPaid = Math.round((financials.grossPaid + data.amount) * 100) / 100;
-        const newNetPaid = Math.max(0, Math.round((newGrossPaid - financials.grossRefunded) * 100) / 100);
-        const newRemaining = Math.max(0, Math.round((financials.totalAmount - newNetPaid) * 100) / 100);
-
-        // 4. Create the immutable payment document
-        transaction.set(payRef, newPayment);
-
-        // 5. Update order pricing counters atomically (syncing derived compatibility fields)
-        transaction.update(orderRef, {
-          'pricing.paidAmount': newGrossPaid,
-          'pricing.remainingAmount': newRemaining,
-          financialLocked: true,
-          updatedAt: now,
-        });
-      });
-
-      return newPayment;
+      
+      const addPaymentFn = httpsCallable<any, Payment>(functions, 'addPayment');
+      const result = await addPaymentFn({ shopId, paymentData: data });
+      return result.data;
     } catch (err: any) {
       console.error('Error adding payment:', err);
       throw new Error(parseFirebaseError(err));

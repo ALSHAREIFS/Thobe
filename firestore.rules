@@ -471,23 +471,8 @@ service cloud.firestore {
       // 5.4 Payments Collection (/shops/{shopId}/payments/{paymentId})
       match /payments/{paymentId} {
         allow read: if canAccessPayments(shopId) || canAccessReports(shopId);
-        allow create: if canAccessPayments(shopId) &&
-                         request.resource.data.amount is number &&
-                         request.resource.data.amount > 0 &&
-                         request.resource.data.shopId == shopId &&
-                         request.resource.data.orderId is string &&
-                         request.resource.data.createdAt is string &&
-                         (
-                           !orderExists(shopId, request.resource.data.orderId) ||
-                           (
-                             getOrderData(shopId, request.resource.data.orderId).status != 'CANCELLED' &&
-                             (
-                               !('pricing' in getOrderData(shopId, request.resource.data.orderId)) ||
-                               !('remainingAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) ||
-                               request.resource.data.amount <= getOrderData(shopId, request.resource.data.orderId).pricing.remainingAmount
-                             )
-                           )
-                         );
+        // Client writes disabled: Payments are now strictly created via secure Cloud Functions
+        allow create: if false;
         // Strictly immutable for financial integrity
         allow update: if false;
         // Payments cannot be deleted by employees or shops, reserved to Super Admin
@@ -499,24 +484,8 @@ service cloud.firestore {
         // Read allowed for users with Payments or Reports permissions
         allow read: if canAccessPayments(shopId) || canAccessReports(shopId);
 
-        // Create allowed only for users with Payments permission with data validation
-        allow create: if canAccessPayments(shopId) &&
-                         request.resource.data.amount is number &&
-                         request.resource.data.amount > 0 &&
-                         request.resource.data.orderId is string &&
-                         request.resource.data.shopId == shopId &&
-                         request.resource.data.createdAt is string &&
-                         (
-                           !orderExists(shopId, request.resource.data.orderId) ||
-                           (
-                             ('pricing' in getOrderData(shopId, request.resource.data.orderId)) &&
-                             ('paidAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) &&
-                             request.resource.data.amount <= (
-                               getOrderData(shopId, request.resource.data.orderId).pricing.paidAmount -
-                               (('refundedAmount' in getOrderData(shopId, request.resource.data.orderId).pricing) ? getOrderData(shopId, request.resource.data.orderId).pricing.refundedAmount : 0)
-                             )
-                           )
-                         );
+        // Client writes disabled: Refunds are now strictly created via secure Cloud Functions
+        allow create: if false;
 
         // Strictly immutable for financial audit trail
         allow update: if false;
