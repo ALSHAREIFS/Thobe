@@ -995,7 +995,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-slate-700">سعر الثوب الواحد (ر.س) *</label>
-                    {vatConfig.vatEnabled && currentShop?.currency !== 'YER' && (
+                    {vatConfig.vatEnabled && ((currentShop?.country || 'SA') === 'SA' && currentShop?.currency === 'SAR') && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
                         {vatConfig.vatPriceMode === 'INCLUSIVE' ? 'شامل الضريبة' : '+ الضريبة'}
                       </span>
@@ -1085,7 +1085,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
               {/* Summary Cards */}
               <div className={`grid ${vatConfig.vatEnabled ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-3'} gap-3 mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-center`}>
-                {vatConfig.vatEnabled && currentShop?.currency !== 'YER' && (
+                {vatConfig.vatEnabled && ((currentShop?.country || 'SA') === 'SA' && currentShop?.currency === 'SAR') && (
                   <>
                     <div>
                       <div className="text-xs text-slate-500 font-semibold">المبلغ قبل الضريبة</div>
@@ -1324,7 +1324,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             {/* Financials Summary */}
             <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-6 text-center sm:text-right flex-wrap">
-                {vatConfig.vatEnabled && currentShop?.currency !== 'YER' && (
+                {vatConfig.vatEnabled && ((currentShop?.country || 'SA') === 'SA' && currentShop?.currency === 'SAR') && (
                   <>
                     <div>
                       <span className="text-xs text-slate-500 block">قبل الضريبة:</span>

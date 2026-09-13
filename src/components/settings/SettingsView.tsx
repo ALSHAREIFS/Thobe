@@ -52,7 +52,14 @@ export const SettingsView: React.FC = () => {
   // Shop Settings Form State
   const [shopName, setShopName] = useState(currentShop?.name || currentShop?.shopName || '');
   const [phone, setPhone] = useState(currentShop?.phone || '');
-  const [city, setCity] = useState(currentShop?.city || 'الرياض');
+  const [country, setCountry] = useState<'SA'|'YE'|string>(currentShop?.country || 'SA');
+  const [city, setCity] = useState(currentShop?.city || (currentShop?.country === 'YE' ? 'صنعاء' : 'الرياض'));
+  const [customCity, setCustomCity] = useState('');
+  const [showCustomCity, setShowCustomCity] = useState(false);
+  
+  const SAUDI_CITIES = ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'الطائف', 'أبها', 'تبوك', 'بريدة', 'حائل'];
+  const YEMEN_CITIES = ['صنعاء', 'عدن', 'تعز', 'الحديدة', 'إب', 'المكلا', 'سيئون', 'ذمار', 'مأرب', 'صعدة'];
+  const currentCityList = country === 'YE' ? YEMEN_CITIES : SAUDI_CITIES;
   const [address, setAddress] = useState(currentShop?.address || '');
   const [vatNumber, setVatNumber] = useState(currentShop?.taxNumber || currentShop?.vatNumber || '');
   const [crNumber, setCrNumber] = useState(currentShop?.crNumber || '');
@@ -99,7 +106,18 @@ export const SettingsView: React.FC = () => {
     if (currentShop) {
       setShopName(currentShop.name || currentShop.shopName || '');
       setPhone(currentShop.phone || '');
-      setCity(currentShop.city || 'الرياض');
+      const initCountry = currentShop.country || 'SA';
+      setCountry(initCountry);
+      const initCity = currentShop.city || (initCountry === 'YE' ? 'صنعاء' : 'الرياض');
+      const cityList = initCountry === 'YE' ? YEMEN_CITIES : SAUDI_CITIES;
+      if (!cityList.includes(initCity) && initCity !== '') {
+        setShowCustomCity(true);
+        setCustomCity(initCity);
+        setCity('أخرى');
+      } else {
+        setShowCustomCity(false);
+        setCity(initCity);
+      }
       setAddress(currentShop.address || '');
       setVatNumber(currentShop.taxNumber || currentShop.vatNumber || '');
       setCrNumber(currentShop.crNumber || '');
@@ -122,7 +140,8 @@ export const SettingsView: React.FC = () => {
         name: shopName,
         shopName: shopName,
         phone,
-        city,
+        city: showCustomCity ? customCity : city,
+        country,
         address,
         taxNumber: trimmedVatNum,
         vatNumber: trimmedVatNum,
@@ -340,17 +359,59 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">المدينة</label>
+                    <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">الدولة *</label>
             <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+              value={country}
+              onChange={(e) => {
+                const newCountry = e.target.value;
+                setCountry(newCountry);
+                if (newCountry === 'SA') {
+                   if (window.confirm('هل تود تغيير العملة الافتراضية إلى الريال السعودي (SAR)؟')) setCurrency('SAR');
+                   setCity('الرياض');
+                   setShowCustomCity(false);
+                } else if (newCountry === 'YE') {
+                   if (window.confirm('هل تود تغيير العملة الافتراضية إلى الريال اليمني (YER)؟')) setCurrency('YER');
+                   setCity('صنعاء');
+                   setShowCustomCity(false);
+                }
+              }}
               className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 font-bold focus:bg-white focus:border-[#1A365D] focus:outline-none"
             >
-              {['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'القصيم', 'أبها', 'تبوك', 'حائل'].map((c) => (
+              <option value="SA">المملكة العربية السعودية</option>
+              <option value="YE">الجمهورية اليمنية</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">المدينة *</label>
+            <select
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                if (e.target.value === 'أخرى') {
+                  setShowCustomCity(true);
+                } else {
+                  setShowCustomCity(false);
+                }
+              }}
+              className="w-full px-3.5 py-2 text-sm bg-slate-50 rounded-xl border border-slate-300 font-bold focus:bg-white focus:border-[#1A365D] focus:outline-none"
+            >
+              {currentCityList.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
+              <option value="أخرى">أخرى (إدخال يدوي)</option>
             </select>
+            {showCustomCity && (
+              <input
+                type="text"
+                placeholder="اكتب اسم المدينة"
+                value={customCity}
+                onChange={(e) => setCustomCity(e.target.value)}
+                className="w-full px-3.5 py-2 mt-2 text-sm bg-white rounded-xl border border-slate-300 focus:border-[#1A365D] focus:outline-none"
+                required
+              />
+            )}
           </div>
 
           <div>
@@ -406,7 +467,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* VAT & Tax Configuration */}
-        {currency === 'SAR' && (
+        {country === 'SA' && currency === 'SAR' && (
         <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
           <div className="flex items-center justify-between">
             <div>

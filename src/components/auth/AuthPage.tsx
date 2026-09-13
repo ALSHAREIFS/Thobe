@@ -37,7 +37,14 @@ export const AuthPage: React.FC = () => {
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
   const [shopName, setShopName] = useState('');
-  const [city, setCity] = useState('الرياض');
+  const [country, setCountry] = useState<'SA'|'YE'>('SA');
+    const [city, setCity] = useState('الرياض');
+    const [customCity, setCustomCity] = useState('');
+    const [showCustomCity, setShowCustomCity] = useState(false);
+    
+    const SAUDI_CITIES = ['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'الطائف', 'أبها', 'تبوك', 'بريدة', 'حائل'];
+    const YEMEN_CITIES = ['صنعاء', 'عدن', 'تعز', 'الحديدة', 'إب', 'المكلا', 'سيئون', 'ذمار', 'مأرب', 'صعدة'];
+    const currentCityList = country === 'YE' ? YEMEN_CITIES : SAUDI_CITIES;
   const [notes, setNotes] = useState('');
   const [requestPassword, setRequestPassword] = useState('');
   const [requestConfirmPassword, setRequestConfirmPassword] = useState('');
@@ -391,19 +398,44 @@ export const AuthPage: React.FC = () => {
 
                     <div>
                       <label className="block text-[11px] font-bold text-stone-700 mb-1">المدينة *</label>
-                      <div className="relative">
-                        <MapPin className="w-4 h-4 text-stone-400 absolute right-3 top-3 pointer-events-none" />
+                      <div className="flex flex-col gap-3">
+                        <select
+                          value={country}
+                          onChange={(e) => {
+                            const newCountry = e.target.value as 'SA'|'YE';
+                            setCountry(newCountry);
+                            setCity(newCountry === 'YE' ? 'صنعاء' : 'الرياض');
+                            setShowCustomCity(false);
+                          }}
+                          className="w-full pl-3 pr-9 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D]"
+                        >
+                          <option value="SA">المملكة العربية السعودية</option>
+                          <option value="YE">الجمهورية اليمنية</option>
+                        </select>
+
                         <select
                           value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          className="w-full pr-9 pl-3 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D] font-bold"
+                          onChange={(e) => {
+                            setCity(e.target.value);
+                            setShowCustomCity(e.target.value === 'أخرى');
+                          }}
+                          className="w-full pl-3 pr-9 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D]"
                         >
-                          {['الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'القصيم', 'أبها', 'تبوك', 'حائل', 'أخرى'].map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
+                          {currentCityList.map((c) => (
+                            <option key={c} value={c}>{c}</option>
                           ))}
+                          <option value="أخرى">أخرى (إدخال يدوي)</option>
                         </select>
+                        {showCustomCity && (
+                          <input
+                            type="text"
+                            placeholder="اكتب اسم المدينة"
+                            value={customCity}
+                            onChange={(e) => setCustomCity(e.target.value)}
+                            className="w-full pl-3 pr-9 py-2.5 bg-white border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-[#1A365D]"
+                            required
+                          />
+                        )}
                       </div>
                     </div>
                   </div>

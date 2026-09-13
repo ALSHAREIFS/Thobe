@@ -41,7 +41,9 @@ interface AuthContextType {
     shopName: string;
     email: string;
     phone: string;
-    city: string;
+      country?: string;
+      currency?: string;
+      city: string;
     password: string;
     notes?: string;
   }) => Promise<ShopRequest>;
@@ -297,7 +299,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     shopName: string;
     email: string;
     phone: string;
-    city: string;
+      country?: string;
+      currency?: string;
+      city: string;
     password: string;
     notes?: string;
   }) => {

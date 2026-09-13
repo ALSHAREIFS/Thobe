@@ -587,7 +587,8 @@ export function generateStoreExcelWorkbook(data: StoreExcelData): Uint8Array {
   const storeInfoHeaders = ['بيان الإعداد / المعلومة', 'القيمة'];
   const storeInfoRows: any[][] = [
     storeInfoHeaders,
-    ['اسم المتجر', shop.name || shop.shopName || 'متجر ثوبي'],
+    ['اسم المحل', shop.name || shop.shopName || 'بدون اسم'],
+    ['الدولة', shop.country === 'YE' ? 'اليمن' : 'السعودية'],
     ['المدينة', shop.city || '-'],
     ['العنوان', shop.address || '-'],
     ['رقم التواصل الرئيسي', formatPhoneCell(shop.phone)],

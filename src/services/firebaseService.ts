@@ -160,7 +160,9 @@ export const TailorService = {
     shopName: string;
     email: string;
     phone: string;
-    city: string;
+      country?: string;
+      currency?: string;
+      city: string;
     password: string;
     notes?: string;
   }): Promise<ShopRequest> {
@@ -189,7 +191,9 @@ export const TailorService = {
         shopName: data.shopName.trim(),
         email,
         phone: data.phone.trim(),
-        city: data.city.trim(),
+        country: data.country || 'SA',
+          currency: data.currency || 'SAR',
+          city: data.city.trim(),
         notes: data.notes?.trim() || '',
         status: 'PENDING',
         createdAt: now,
@@ -222,7 +226,9 @@ export const TailorService = {
     shopName: string;
     email: string;
     phone: string;
-    city: string;
+      country?: string;
+      currency?: string;
+      city: string;
     notes?: string;
   }): Promise<ShopRequest> {
     try {
@@ -236,7 +242,9 @@ export const TailorService = {
         shopName: data.shopName.trim(),
         email: data.email.trim().toLowerCase(),
         phone: data.phone.trim(),
-        city: data.city.trim(),
+        country: data.country || 'SA',
+          currency: data.currency || 'SAR',
+          city: data.city.trim(),
         notes: data.notes?.trim() || '',
         status: 'PENDING',
         createdAt: now,
@@ -486,6 +494,8 @@ export const TailorService = {
     shopData: {
       name: string;
       phone: string;
+      country?: string;
+      currency?: string;
       city: string;
       address?: string;
       crNumber?: string;
@@ -663,6 +673,8 @@ export const TailorService = {
     shopData: {
       name: string;
       phone: string;
+      country?: string;
+      currency?: string;
       city: string;
       address?: string;
       crNumber?: string;

@@ -45,6 +45,8 @@ export interface ShopRequest {
   shopName: string;
   email: string;
   phone: string;
+  country?: 'SA' | 'YE' | string;
+  currency?: ShopCurrency | string;
   city: string;
   notes?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -91,6 +93,7 @@ export interface Shop {
   logoUrl?: string;
   phone: string;
   alternatePhone?: string;
+  country?: 'SA' | 'YE' | string;
   address: string;
   city: string;
   crNumber?: string; // السجل التجاري

@@ -207,11 +207,11 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
                     <Phone className="w-3 h-3 text-stone-400" /> {currentShop.phone}
                   </span>
                 )}
-                {currentShop?.address && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-stone-400" /> {currentShop.address}
-                  </span>
-                )}
+                  {(currentShop?.city || currentShop?.address) && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-stone-400" /> {currentShop?.city ? currentShop.city + (currentShop?.address ? ' - ' : '') : ''}{currentShop?.address || ''}
+                    </span>
+                  )}
                 {effectiveTaxNumber && (
                   <span className="font-mono">الرقم الضريبي: {effectiveTaxNumber}</span>
                 )}
@@ -223,7 +223,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
           <div className="text-left bg-stone-100 p-2.5 rounded-xl border border-stone-300">
             <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest flex items-center justify-between gap-1">
               <span>أمر تفصيل رقم</span>
-              {(vatSnapshot.vatEnabled && shop.currency !== 'YER') && (
+              {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) && (
                 <span className="text-[8px] font-black text-blue-900 bg-blue-100 px-1 py-0.5 rounded border border-blue-200">
                   فاتورة ضريبية مبسطة
                 </span>
@@ -460,8 +460,8 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         {/* 7. FINANCIAL SUMMARY & SIGNATURE RECEIPT */}
         <div className="border-t-2 border-stone-900 pt-3">
           <div className="flex items-center justify-between gap-4">
-            <div className={`grid ${(vatSnapshot.vatEnabled && shop.currency !== 'YER') ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
-              {(vatSnapshot.vatEnabled && shop.currency !== 'YER') && (
+            <div className={`grid ${(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
+              {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) && (
                 <>
                   <div className="bg-stone-50 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
                     <span className="text-[10px] text-stone-500 font-bold block">قبل الضريبة</span>
@@ -475,7 +475,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
               )}
               <div className="bg-stone-100 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
                 <span className="text-[10px] text-stone-500 font-bold block">
-                  {(vatSnapshot.vatEnabled && shop.currency !== 'YER') ? 'الإجمالي شامل الضريبة' : 'إجمالي المبلغ'}
+                  {(vatSnapshot.vatEnabled && (shop.country === 'SA' && shop.currency === 'SAR')) ? 'الإجمالي شامل الضريبة' : 'إجمالي المبلغ'}
                 </span>
                 <span className="font-black text-stone-950 text-sm">{totalAmount} {getCurrencySymbol(shop.currency)}</span>
               </div>
