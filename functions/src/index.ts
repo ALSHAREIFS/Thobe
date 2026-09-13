@@ -1,4 +1,5 @@
 import * as functions from 'firebase-functions';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
@@ -18,7 +19,7 @@ function isSuperAdmin(context: any) {
 
 export const initiateRestoreUpload = functions.https.onCall(async (data: any, context: any) => {
   if (!isSuperAdmin(context)) {
-    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    throw new HttpsError('permission-denied', 'Unauthorized');
   }
   
   const jobId = `job-${Date.now()}`;
@@ -45,11 +46,11 @@ export const initiateRestoreUpload = functions.https.onCall(async (data: any, co
 
 export const executeRestoreJob = functions.https.onCall(async (data: any, context: any) => {
   if (!isSuperAdmin(context)) {
-    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    throw new HttpsError('permission-denied', 'Unauthorized');
   }
   
   const { jobId } = data;
-  if (!jobId) throw new functions.https.HttpsError('invalid-argument', 'jobId required');
+  if (!jobId) throw new HttpsError('invalid-argument', 'jobId required');
   
   const jobRef = db.collection('restoreJobs').doc(jobId);
   await jobRef.update({ status: 'VALIDATING' });
@@ -62,11 +63,11 @@ export const executeRestoreJob = functions.https.onCall(async (data: any, contex
 
 export const cleanupRestoreJob = functions.https.onCall(async (data: any, context: any) => {
   if (!isSuperAdmin(context)) {
-    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    throw new HttpsError('permission-denied', 'Unauthorized');
   }
   
   const { jobId } = data;
-  if (!jobId) throw new functions.https.HttpsError('invalid-argument', 'jobId required');
+  if (!jobId) throw new HttpsError('invalid-argument', 'jobId required');
   
   const recoveryRef = db.collection('recoveryShops').doc(jobId);
   const collections = ['recoveredStaff', 'recoveredCustomers', 'recoveredMeasurements', 'recoveredOrders', 'recoveredPayments', 'recoveredRefunds'];
@@ -118,19 +119,19 @@ async function canAccessPayments(shopId: string, uid: string, context: any) {
   return false;
 }
 
-export const addPayment = functions.https.onCall(async (data: any, context: any) => {
-  const { shopId, paymentData } = data;
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
-  const uid = context.auth.uid;
+export const addPayment = onCall(async (request: any) => {
+  const { shopId, paymentData } = request.data;
+  if (!request.auth) throw new HttpsError('unauthenticated', 'User must be logged in.');
+  const uid = request.auth.uid;
   if (!shopId || !paymentData || !paymentData.orderId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields.');
+    throw new HttpsError('invalid-argument', 'Missing required fields.');
   }
 
-  const hasAccess = await canAccessPayments(shopId, uid, context);
-  if (!hasAccess) throw new functions.https.HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
+  const hasAccess = await canAccessPayments(shopId, uid, request);
+  if (!hasAccess) throw new HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
 
   if (typeof paymentData.amount !== 'number' || isNaN(paymentData.amount) || paymentData.amount <= 0) {
-    throw new functions.https.HttpsError('invalid-argument', 'Payment amount must be a positive number.');
+    throw new HttpsError('invalid-argument', 'Payment amount must be a positive number.');
   }
 
   const orderRef = db.collection(`shops/${shopId}/orders`).doc(paymentData.orderId);
@@ -151,13 +152,13 @@ export const addPayment = functions.https.onCall(async (data: any, context: any)
     await db.runTransaction(async (transaction) => {
       const orderSnap = await transaction.get(orderRef);
       if (!orderSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'Order not found.');
+        throw new HttpsError('not-found', 'Order not found.');
       }
       const orderData = orderSnap.data();
-      if (!orderData) throw new functions.https.HttpsError("not-found", "Order data is missing.");
+      if (!orderData) throw new HttpsError("not-found", "Order data is missing.");
 
       if (orderData.status === 'CANCELLED') {
-        throw new functions.https.HttpsError('failed-precondition', 'Cannot add payment to a cancelled order.');
+        throw new HttpsError('failed-precondition', 'Cannot add payment to a cancelled order.');
       }
 
       const orderId = orderSnap.id;
@@ -194,7 +195,7 @@ export const addPayment = functions.https.onCall(async (data: any, context: any)
       const remaining = Math.max(0, Math.round((totalAmount - netPaid) * 100) / 100);
 
       if (paymentData.amount > remaining) {
-        throw new functions.https.HttpsError('failed-precondition', `Payment amount (${paymentData.amount}) exceeds remaining amount (${remaining}).`);
+        throw new HttpsError('failed-precondition', `Payment amount (${paymentData.amount}) exceeds remaining amount (${remaining}).`);
       }
 
       const newGrossPaid = Math.round((grossPaid + paymentData.amount) * 100) / 100;
@@ -215,24 +216,24 @@ export const addPayment = functions.https.onCall(async (data: any, context: any)
     return newPayment;
   } catch (err: any) {
     if (err.errorInfo && err.errorInfo.code) throw err;
-    throw new functions.https.HttpsError('internal', err.message || 'Unknown error');
+    throw new HttpsError('internal', err.message || 'Unknown error');
   }
 });
 
-export const addRefund = functions.https.onCall(async (data: any, context: any) => {
-  const { shopId, refundData } = data;
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
-  const uid = context.auth.uid;
+export const addRefund = onCall(async (request: any) => {
+  const { shopId, refundData } = request.data;
+  if (!request.auth) throw new HttpsError('unauthenticated', 'User must be logged in.');
+  const uid = request.auth.uid;
 
   if (!shopId || !refundData || !refundData.orderId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields.');
+    throw new HttpsError('invalid-argument', 'Missing required fields.');
   }
 
-  const hasAccess = await canAccessPayments(shopId, uid, context);
-  if (!hasAccess) throw new functions.https.HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
+  const hasAccess = await canAccessPayments(shopId, uid, request);
+  if (!hasAccess) throw new HttpsError('permission-denied', 'User lacks payment permissions for this shop.');
 
   if (typeof refundData.amount !== 'number' || isNaN(refundData.amount) || refundData.amount <= 0) {
-    throw new functions.https.HttpsError('invalid-argument', 'Refund amount must be a positive number.');
+    throw new HttpsError('invalid-argument', 'Refund amount must be a positive number.');
   }
 
   const refundId = refundData.refundId || db.collection(`shops/${shopId}/refunds`).doc().id;
@@ -252,15 +253,15 @@ export const addRefund = functions.https.onCall(async (data: any, context: any) 
     await db.runTransaction(async (transaction) => {
       const existingRefund = await transaction.get(refundRef);
       if (existingRefund.exists) {
-         throw new functions.https.HttpsError('already-exists', 'Refund already processed.');
+         throw new HttpsError('already-exists', 'Refund already processed.');
       }
 
       const orderSnap = await transaction.get(orderRef);
       if (!orderSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'Order not found.');
+        throw new HttpsError('not-found', 'Order not found.');
       }
       const orderData = orderSnap.data();
-      if (!orderData) throw new functions.https.HttpsError("not-found", "Order data is missing.");
+      if (!orderData) throw new HttpsError("not-found", "Order data is missing.");
 
       const orderId = orderSnap.id;
       const orderNumber = orderData.orderNumber;
@@ -295,7 +296,7 @@ export const addRefund = functions.https.onCall(async (data: any, context: any) 
       const maxRefundable = netPaid;
 
       if (refundData.amount > maxRefundable) {
-        throw new functions.https.HttpsError('failed-precondition', `Refund amount (${refundData.amount}) exceeds maximum refundable amount (${maxRefundable}).`);
+        throw new HttpsError('failed-precondition', `Refund amount (${refundData.amount}) exceeds maximum refundable amount (${maxRefundable}).`);
       }
 
       const newGrossRefunded = Math.round((grossRefunded + refundData.amount) * 100) / 100;
@@ -318,6 +319,6 @@ export const addRefund = functions.https.onCall(async (data: any, context: any) 
     return newRefund;
   } catch (err: any) {
     if (err.errorInfo && err.errorInfo.code) throw err;
-    throw new functions.https.HttpsError('internal', err.message || 'Unknown error');
+    throw new HttpsError('internal', err.message || 'Unknown error');
   }
 });
