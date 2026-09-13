@@ -220,16 +220,16 @@ export const OrderListView: React.FC = () => {
               {/* Pricing & Actions */}
               <div className="flex items-center justify-between md:justify-end gap-4 pt-3 md:pt-0 border-t md:border-t-0 border-stone-100">
                 <div className="text-right">
-                  <div className="text-sm font-black text-stone-900">{orderTotal} {getCurrencySymbol(shop?.currency)}</div>
+                  <div className="text-sm font-black text-stone-900">{orderTotal} {getCurrencySymbol(currentShop?.currency)}</div>
                   <div className="text-[11px] text-stone-400">
                     {fin.isCancelled ? (
                       fin.unrefundedLiability > 0 ? (
-                        <span className="text-rose-700 font-bold">بانتظار استرداد: {fin.unrefundedLiability} {getCurrencySymbol(shop?.currency)}</span>
+                        <span className="text-rose-700 font-bold">بانتظار استرداد: {fin.unrefundedLiability} {getCurrencySymbol(currentShop?.currency)}</span>
                       ) : (
                         <span className="text-stone-400 font-semibold">ملغي (لا يوجد رصيد)</span>
                       )
                     ) : orderRemaining > 0 ? (
-                      <span className="text-amber-800 font-bold">متبقي: {orderRemaining} {getCurrencySymbol(shop?.currency)}</span>
+                      <span className="text-amber-800 font-bold">متبقي: {orderRemaining} {getCurrencySymbol(currentShop?.currency)}</span>
                     ) : (
                       <span className="text-emerald-700 font-bold">مدفوع بالكامل ✓</span>
                     )}
@@ -404,7 +404,7 @@ export const OrderListView: React.FC = () => {
                 const cancelPaid = fin.grossPaid;
                 return (
                   <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold">
-                    هذا الطلب يحتوي على دفعات فعلية مسجلة بالسجل بقيمة <b className="font-black text-amber-900 text-sm">{cancelPaid} {getCurrencySymbol(shop?.currency)}</b>. إلغاء الطلب لن يحذف دفعات العميل المسجلة. يمكنك إرجاع المبلغ للعميل عبر سند استرداد.
+                    هذا الطلب يحتوي على دفعات فعلية مسجلة بالسجل بقيمة <b className="font-black text-amber-900 text-sm">{cancelPaid} {getCurrencySymbol(currentShop?.currency)}</b>. إلغاء الطلب لن يحذف دفعات العميل المسجلة. يمكنك إرجاع المبلغ للعميل عبر سند استرداد.
                   </div>
                 );
               })()}

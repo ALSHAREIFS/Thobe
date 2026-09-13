@@ -240,12 +240,12 @@ export const CustomerListView: React.FC = () => {
                       </span>
                       <span className="text-stone-300">•</span>
                       <span className="font-black text-stone-900">
-                        {stats.totalOrderValue} {getCurrencySymbol(shop?.currency)}
+                        {stats.totalOrderValue} {getCurrencySymbol(currentShop?.currency)}
                       </span>
                     </div>
                     {stats.totalRemaining > 0 && (
                       <span className="text-[11px] font-bold text-amber-800">
-                        متبقي: {stats.totalRemaining} {getCurrencySymbol(shop?.currency)}
+                        متبقي: {stats.totalRemaining} {getCurrencySymbol(currentShop?.currency)}
                       </span>
                     )}
                   </div>

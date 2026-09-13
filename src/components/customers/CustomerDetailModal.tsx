@@ -301,7 +301,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200">
                     <div className="text-[11px] text-stone-500 font-bold">إجمالي المشتريات</div>
                     <div className="text-xl font-black text-amber-800 mt-0.5">
-                      {totalPurchases} {getCurrencySymbol(shop?.currency)}
+                      {totalPurchases} {getCurrencySymbol(currentShop?.currency)}
                     </div>
                   </div>
                 )}
@@ -309,7 +309,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200">
                     <div className="text-[11px] text-stone-500 font-bold">المتبقي بذمة العميل</div>
                     <div className={`text-xl font-black mt-0.5 ${totalRemaining > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                      {totalRemaining} {getCurrencySymbol(shop?.currency)}
+                      {totalRemaining} {getCurrencySymbol(currentShop?.currency)}
                     </div>
                   </div>
                 )}
@@ -458,7 +458,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         <div className="text-xs text-stone-500 mt-1 flex items-center gap-3">
                           <span>بتاريخ: {new Date(order.orderDate).toLocaleDateString('ar-SA')}</span>
                           <span>القماش: {order.tailoringDetails?.fabric?.name || 'قماش مخصص'}</span>
-                          <span className="font-black text-stone-900">{order.pricing?.totalAmount} {getCurrencySymbol(shop?.currency)}</span>
+                          <span className="font-black text-stone-900">{order.pricing?.totalAmount} {getCurrencySymbol(currentShop?.currency)}</span>
                         </div>
                       </div>
 

@@ -337,7 +337,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       return;
     }
     if (refundAmount > maxRefundable) {
-      setRefundError(`المبلغ المطلوب (${refundAmount} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}) يتجاوز الحد الأقصى المتاح للاسترداد (${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}).`);
+      setRefundError(`المبلغ المطلوب (${refundAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) يتجاوز الحد الأقصى المتاح للاسترداد (${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}).`);
       return;
     }
 
@@ -743,7 +743,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             {/* VAT Snapshot Badge & Details if enabled */}
-            {(vatSnapshot.vatEnabled && (order.currencySnapshot || shop?.currency) !== 'YER') && (
+            {(vatSnapshot.vatEnabled && (order.currencySnapshot || currentShop?.currency) !== 'YER') && (
               <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-md bg-[#1A365D] text-white font-black text-[10px]">
@@ -759,9 +759,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-slate-700 font-bold">
-                  <span>قبل الضريبة: <b className="text-slate-900">{vatSnapshot.subtotalAmount}</b> {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
-                  <span className="text-blue-900">مبلغ الضريبة: <b>{vatSnapshot.vatAmount}</b> {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
-                  <span className="text-slate-900">الإجمالي: <b>{financials.totalAmount}</b> {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                  <span>قبل الضريبة: <b className="text-slate-900">{vatSnapshot.subtotalAmount}</b> {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
+                  <span className="text-blue-900">مبلغ الضريبة: <b>{vatSnapshot.vatAmount}</b> {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
+                  <span className="text-slate-900">الإجمالي: <b>{financials.totalAmount}</b> {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 </div>
               </div>
             )}
@@ -770,19 +770,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
               <div className="bg-white p-3.5 rounded-xl border border-stone-200 flex flex-col justify-center shadow-2xs">
                 <span className="text-xs text-stone-500 font-semibold block">
-                  {(vatSnapshot.vatEnabled && (order.currencySnapshot || shop?.currency) !== 'YER') ? 'قيمة الطلب (شامل الضريبة)' : 'قيمة الطلب'}
+                  {(vatSnapshot.vatEnabled && (order.currencySnapshot || currentShop?.currency) !== 'YER') ? 'قيمة الطلب (شامل الضريبة)' : 'قيمة الطلب'}
                 </span>
-                <span className="text-lg font-black text-stone-900 mt-0.5">{financials.totalAmount} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                <span className="text-lg font-black text-stone-900 mt-0.5">{financials.totalAmount} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 <span className="text-[10px] text-stone-400 mt-0.5">
-                  {(vatSnapshot.vatEnabled && (order.currencySnapshot || shop?.currency) !== 'YER')
-                    ? `قبل الضريبة: ${vatSnapshot.subtotalAmount} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}`
+                  {(vatSnapshot.vatEnabled && (order.currencySnapshot || currentShop?.currency) !== 'YER')
+                    ? `قبل الضريبة: ${vatSnapshot.subtotalAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`
                     : 'سعر التفصيل الإجمالي'}
                 </span>
               </div>
               
               <div className="bg-white p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/20 flex flex-col justify-center shadow-2xs">
                 <span className="text-xs text-emerald-700 font-semibold block">المقبوض من العميل</span>
-                <span className="text-lg font-black text-emerald-700 mt-0.5">{grossPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                <span className="text-lg font-black text-emerald-700 mt-0.5">{grossPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 <span className="text-[10px] text-emerald-600 mt-0.5">
                   {orderPayments.length} سند قبض
                 </span>
@@ -790,7 +790,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
               <div className="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/20 flex flex-col justify-center shadow-2xs">
                 <span className="text-xs text-rose-700 font-semibold block">المعاد للعميل</span>
-                <span className="text-lg font-black text-rose-700 mt-0.5">{totalRefunds} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                <span className="text-lg font-black text-rose-700 mt-0.5">{totalRefunds} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 <span className="text-[10px] text-rose-600 mt-0.5">
                   {orderRefunds.length} سند إرجاع
                 </span>
@@ -798,9 +798,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
               <div className="bg-white p-3.5 rounded-xl border border-stone-200 flex flex-col justify-center shadow-2xs">
                 <span className="text-xs text-stone-600 font-semibold block">الصافي لدى المتجر</span>
-                <span className="text-lg font-black text-stone-900 mt-0.5">{netPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                <span className="text-lg font-black text-stone-900 mt-0.5">{netPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 <span className="text-[10px] text-stone-500 mt-0.5">
-                  {isCancelled ? 'أمانة مستحقة للعميل' : `المتاح للإرجاع: ${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}`}
+                  {isCancelled ? 'أمانة مستحقة للعميل' : `المتاح للإرجاع: ${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`}
                 </span>
               </div>
             </div>
@@ -831,20 +831,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <div className="font-black text-sm">
                     {isCancelled
                       ? unrefundedLiability > 0
-                        ? `الطلب ملغي — يوجد رصيد مستحق للعميل: ${unrefundedLiability} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}`
+                        ? `الطلب ملغي — يوجد رصيد مستحق للعميل: ${unrefundedLiability} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`
                         : 'الطلب ملغي — الحساب المالي مسوّى بالكامل'
                       : activeRemaining === 0
-                      ? `تم سداد قيمة الطلب بالكامل (${financials.totalAmount} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}) ✓`
-                      : `المتبقي للتحصيل عند التسليم: ${activeRemaining} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}`}
+                      ? `تم سداد قيمة الطلب بالكامل (${financials.totalAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) ✓`
+                      : `المتبقي للتحصيل عند التسليم: ${activeRemaining} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`}
                   </div>
                   <div className="text-[11px] opacity-80 mt-0.5">
                     {isCancelled
                       ? unrefundedLiability > 0
-                        ? 'تم إلغاء الطلب والمتبقي على العميل 0 {getCurrencySymbol(order.currencySnapshot || shop?.currency)}، والرصيد المسدد محفوظ كأمانة لإرجاعه للعميل نقداً أو شبكة.'
+                        ? 'تم إلغاء الطلب والمتبقي على العميل 0 {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}، والرصيد المسدد محفوظ كأمانة لإرجاعه للعميل نقداً أو شبكة.'
                         : 'تم إلغاء الطلب ولا توجد أي مبالغ معلقة أو مطالبات مالية على العميل أو المتجر.'
                       : activeRemaining === 0
                       ? 'تم تحصيل كافة مستحقات هذا الطلب ولا يوجد أي متبقي.'
-                      : `تم استلام عربون صافٍ قدره ${netPaid} ${getCurrencySymbol(order.currencySnapshot || shop?.currency)}، وسيتم تحصيل باقي المبلغ عند استلام الثوب.`}
+                      : `تم استلام عربون صافٍ قدره ${netPaid} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}، وسيتم تحصيل باقي المبلغ عند استلام الثوب.`}
                   </div>
                 </div>
               </div>
@@ -856,7 +856,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>تسجيل إرجاع المبلغ للعميل ({unrefundedLiability} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})</span>
+                  <span>تسجيل إرجاع المبلغ للعميل ({unrefundedLiability} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})</span>
                 </button>
               )}
             </div>
@@ -886,7 +886,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     onClick={() => setPayAmount(activeRemaining)}
                     className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   >
-                    كامل المتبقي ({activeRemaining} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})
+                    كامل المتبقي ({activeRemaining} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})
                   </button>
                   {activeRemaining > 50 && (
                     <button
@@ -894,7 +894,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       onClick={() => setPayAmount(Math.round(activeRemaining / 2))}
                       className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                     >
-                      نصف المتبقي ({Math.round(activeRemaining / 2)} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})
+                      نصف المتبقي ({Math.round(activeRemaining / 2)} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})
                     </button>
                   )}
                   {activeRemaining > 100 && (
@@ -903,7 +903,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       onClick={() => setPayAmount(100)}
                       className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                     >
-                      100 {getCurrencySymbol(order.currencySnapshot || shop?.currency)}
+                      100 {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}
                     </button>
                   )}
                 </div>
@@ -971,7 +971,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <div>
                       <h4 className="font-black text-xs text-rose-950">إرجاع مبلغ للعميل</h4>
                       <span className="text-[10px] text-rose-700">
-                        الحد الأقصى القابل للإرجاع: <b>{maxRefundable} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b>
+                        الحد الأقصى القابل للإرجاع: <b>{maxRefundable} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b>
                       </span>
                     </div>
                   </div>
@@ -999,7 +999,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     onClick={() => setRefundAmount(maxRefundable)}
                     className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   >
-                    كامل الرصيد القابل للإرجاع ({maxRefundable} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})
+                    كامل الرصيد القابل للإرجاع ({maxRefundable} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})
                   </button>
                   {maxRefundable > 50 && (
                     <button
@@ -1007,7 +1007,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       onClick={() => setRefundAmount(Math.round(maxRefundable / 2))}
                       className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                     >
-                      نصف المبلغ ({Math.round(maxRefundable / 2)} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})
+                      نصف المبلغ ({Math.round(maxRefundable / 2)} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})
                     </button>
                   )}
                 </div>
@@ -1103,7 +1103,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     دفعات العميل المسجلة ({orderPayments.length})
                   </span>
                   <span className="text-[11px] text-stone-500 font-semibold">
-                    إجمالي المدفوع: <b className="text-emerald-700 font-black">{grossPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b>
+                    إجمالي المدفوع: <b className="text-emerald-700 font-black">{grossPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b>
                   </span>
                 </div>
 
@@ -1121,7 +1121,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           </div>
                           <div>
                             <div className="flex items-center flex-wrap gap-2">
-                              <span className="font-black text-stone-900">{pay.amount} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                              <span className="font-black text-stone-900">{pay.amount} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-200">
                                 طريقة الدفع: {methodLabel}
                               </span>
@@ -1157,7 +1157,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     المبالغ المعادة للعميل ({orderRefunds.length})
                   </span>
                   <span className="text-[11px] text-rose-800 font-semibold">
-                    إجمالي المعاد: <b className="text-rose-700 font-black">{totalRefunds} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b>
+                    إجمالي المعاد: <b className="text-rose-700 font-black">{totalRefunds} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b>
                   </span>
                 </div>
 
@@ -1175,7 +1175,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           </div>
                           <div>
                             <div className="flex items-center flex-wrap gap-2">
-                              <span className="font-black text-rose-900">{ref.amount} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</span>
+                              <span className="font-black text-rose-900">{ref.amount} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-900 border border-rose-200">
                                 طريقة الإرجاع: {methodLabel}
                               </span>
@@ -1221,12 +1221,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             <div className="p-6 space-y-4">
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 leading-relaxed font-semibold space-y-1.5">
                 <div>
-                  هذا الطلب يحتوي على دفعات مستلمة قدرها <b className="font-black text-amber-900 text-sm">{grossPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b>
-                  {totalRefunds > 0 && <span> (تم إرجاع {totalRefunds} {getCurrencySymbol(order.currencySnapshot || shop?.currency)} منها سابقاً)</span>}.
+                  هذا الطلب يحتوي على دفعات مستلمة قدرها <b className="font-black text-amber-900 text-sm">{grossPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b>
+                  {totalRefunds > 0 && <span> (تم إرجاع {totalRefunds} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)} منها سابقاً)</span>}.
                 </div>
                 {netPaid > 0 ? (
                   <div className="text-amber-900 bg-amber-100/60 p-2 rounded-xl border border-amber-300">
-                    الصافي المحصل لدى المتجر حالياً: <b className="font-black text-base text-amber-950">{netPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b>.
+                    الصافي المحصل لدى المتجر حالياً: <b className="font-black text-base text-amber-950">{netPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b>.
                   </div>
                 ) : (
                   <div className="text-stone-700">
@@ -1234,14 +1234,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </div>
                 )}
                 <div className="text-[11px] text-amber-800">
-                  عند تأكيد الإلغاء، سيصبح المبلغ المتبقي للتحصيل من العميل <b>0 {getCurrencySymbol(order.currencySnapshot || shop?.currency)}</b> (طلب ملغي).
+                  عند تأكيد الإلغاء، سيصبح المبلغ المتبقي للتحصيل من العميل <b>0 {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</b> (طلب ملغي).
                 </div>
               </div>
 
               {netPaid > 0 && canAccessPayments && (
                 <div className="space-y-2.5 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
                   <span className="text-xs font-black text-stone-900 block">
-                    كيف ترغب في تسوية الرصيد المسدد ({netPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)})؟
+                    كيف ترغب في تسوية الرصيد المسدد ({netPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)})؟
                   </span>
                   
                   <div className="space-y-2 text-xs">
@@ -1259,7 +1259,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         className="mt-0.5 text-rose-700 focus:ring-rose-500"
                       />
                       <div>
-                        <div className="font-bold">إلغاء الطلب وتسجيل إرجاع كامل المبلغ ({netPaid} {getCurrencySymbol(order.currencySnapshot || shop?.currency)}) للعميل الآن</div>
+                        <div className="font-bold">إلغاء الطلب وتسجيل إرجاع كامل المبلغ ({netPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) للعميل الآن</div>
                         <div className="text-[11px] opacity-80 mt-0.5">
                           يقوم بإنشاء سند استرداد فوري وتسوية رصيد الطلب بالكامل.
                         </div>
