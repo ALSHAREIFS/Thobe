@@ -128,6 +128,7 @@ export const SettingsView: React.FC = () => {
         vatNumber: trimmedVatNum,
         crNumber,
         defaultDeliveryDays,
+        currency,
         vatEnabled,
         vatRegistrationNumber: trimmedVatNum,
         vatRate: Number(vatRate) || 15,
@@ -388,7 +389,24 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
+        {/* Shop Currency */}
+        <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
+          <div className="flex flex-col gap-2">
+            <label className="block text-xs font-bold text-slate-700">عملة المحل التشغيلية</label>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as 'SAR' | 'YER')}
+              className="w-full sm:w-1/3 px-3.5 py-2 text-sm bg-white rounded-xl border border-slate-300 font-bold focus:border-[#1A365D] focus:outline-none"
+            >
+              <option value="SAR">الريال السعودي (SAR)</option>
+              <option value="YER">الريال اليمني (YER)</option>
+            </select>
+            <p className="text-[10px] text-slate-500">ملاحظة: اختيار الريال اليمني يقوم بتعطيل وإخفاء الضرائب السعودية من كافة أجزاء النظام.</p>
+          </div>
+        </div>
+
         {/* VAT & Tax Configuration */}
+        {currency === 'SAR' && (
         <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -485,6 +503,7 @@ export const SettingsView: React.FC = () => {
             </div>
           )}
         </div>
+        )}
 
         <div className="flex justify-end pt-3">
           <button
