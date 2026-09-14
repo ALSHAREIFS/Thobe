@@ -73,7 +73,7 @@ const MainLayout: React.FC = () => {
   const activeCustomer = customers.find((c) => c.customerId === selectedCustomerId) || null;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col text-[#1E293B] font-sans antialiased selection:bg-[#1A365D] selection:text-white" dir="rtl">
+    <div className="min-h-[100dvh] bg-[#F8FAFC] flex flex-col text-[#1E293B] font-sans antialiased selection:bg-[#1A365D] selection:text-white" dir="rtl">
       {/* Super Admin Preview Banner (if viewing shop workspace) */}
       {isSuperAdmin && (
         <div className="bg-slate-900 text-slate-100 px-4 py-2 flex items-center justify-between text-xs border-b border-slate-800 z-40">
@@ -206,7 +206,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white" dir="rtl">
+      <div className="min-h-[100dvh] bg-slate-950 flex flex-col items-center justify-center text-white" dir="rtl">
         <div className="w-14 h-14 rounded-2xl bg-[#1A365D] border border-blue-400/40 flex items-center justify-center mb-4 shadow-xl animate-pulse">
           <Scissors className="w-7 h-7 text-blue-300 animate-spin" />
         </div>
@@ -224,7 +224,7 @@ const AppContent: React.FC = () => {
   // 2. User is authenticated, but their shop request is still PENDING -> Block access and show Pending status
   if (userShopRequest && userShopRequest.status === 'PENDING' && !isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4" dir="rtl">
         <div className="max-w-md w-full bg-slate-900 border border-amber-500/40 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl animate-in fade-in">
           <div className="w-16 h-16 bg-amber-950/80 border border-amber-500/50 rounded-2xl flex items-center justify-center text-amber-400 mx-auto shadow-inner">
             <Clock className="w-8 h-8 animate-pulse" />
@@ -292,7 +292,7 @@ const AppContent: React.FC = () => {
   // 3. User is authenticated, but their shop registration request was REJECTED
   if (userShopRequest && userShopRequest.status === 'REJECTED' && !isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4" dir="rtl">
         <div className="max-w-md w-full bg-slate-900 border border-rose-800/80 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-2xl animate-in fade-in">
           <div className="w-16 h-16 bg-rose-950/80 border border-rose-800 rounded-2xl flex items-center justify-center text-rose-400 mx-auto">
             <ShieldAlert className="w-8 h-8" />
@@ -337,7 +337,7 @@ const AppContent: React.FC = () => {
   // If Shop is SUSPENDED -> Block access with message
   if (isShopSuspended && !isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4" dir="rtl">
         <div className="max-w-md w-full bg-slate-900 border border-rose-800/80 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-2xl">
           <div className="w-16 h-16 bg-rose-950/80 border border-rose-800 rounded-2xl flex items-center justify-center text-rose-400 mx-auto">
             <PauseCircle className="w-8 h-8" />
@@ -370,7 +370,7 @@ const AppContent: React.FC = () => {
   // Regular user with no active shop attached yet
   if (!currentShop && !isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-[100dvh] bg-slate-950 flex items-center justify-center p-4" dir="rtl">
         <div className="max-w-md w-full bg-slate-900 border border-amber-800/60 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-2xl">
           <div className="w-16 h-16 bg-amber-950/80 border border-amber-800 rounded-2xl flex items-center justify-center text-amber-400 mx-auto">
             <Clock className="w-8 h-8" />

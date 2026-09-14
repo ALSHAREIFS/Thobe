@@ -127,7 +127,7 @@ export const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 flex flex-col justify-center items-center p-4 sm:p-6 select-none" dir="rtl">
+    <div className="min-h-[100dvh] bg-stone-100 flex flex-col justify-center items-center p-4 sm:p-6 select-none" dir="rtl">
       {/* Background Ambience */}
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 bg-white rounded-3xl shadow-2xl border border-stone-200/80 overflow-hidden">
         
