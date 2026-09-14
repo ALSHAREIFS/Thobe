@@ -20,8 +20,8 @@ export const firebaseConfig = {
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = appletConfig.firestoreDatabaseId && appletConfig.firestoreDatabaseId !== '(default)'
-  ? initializeFirestore(app, { experimentalForceLongPolling: true }, appletConfig.firestoreDatabaseId)
-  : initializeFirestore(app, { experimentalForceLongPolling: true });
+  ? getFirestore(app, appletConfig.firestoreDatabaseId)
+  : getFirestore(app);
 export const storage = getStorage(app);
 import { getFunctions } from 'firebase/functions';
 export const functions = getFunctions(app, 'us-central1'); // Assuming default region
