@@ -189,19 +189,19 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
       {/* The Printable A4 Sheet Container */}
       <div
         id="tailoring-print-sheet"
-        className="w-full max-w-[850px] bg-white text-stone-950 p-6 sm:p-8 rounded-2xl shadow-2xl my-8 print:my-0 print:p-4 print:shadow-none print:w-full print:rounded-none border border-stone-300 text-xs"
+        className="w-full max-w-[850px] bg-white text-stone-950 p-3 sm:p-8 rounded-2xl shadow-2xl my-4 sm:my-8 print:my-0 print:p-4 print:shadow-none print:w-full print:rounded-none border border-stone-300 text-xs"
         style={{ fontFamily: 'Tajawal, sans-serif' }}
       >
         {/* 1. SHOP HEADER & BARCODE */}
-        <div className="border-b-2 border-stone-900 pb-4 mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-amber-900 text-white flex items-center justify-center font-black text-2xl border-2 border-amber-800">
+        <div className="border-b-2 border-stone-900 pb-4 mb-4 flex flex-col sm:flex-row print:flex-row items-start justify-between gap-4">
+          <div className="flex items-start sm:items-center print:items-center gap-3 w-full sm:w-auto print:w-auto">
+            <div className="w-14 h-14 rounded-2xl bg-amber-900 text-white flex items-center justify-center font-black text-2xl border-2 border-amber-800 shrink-0">
               ث
             </div>
             <div>
               <h1 className="text-xl font-black text-stone-950">{currentShop?.shopName || currentShop?.name || 'المقص الذهبي للخياطة'}</h1>
               <p className="text-xs text-stone-600 font-bold">للخياطة الرجالية الراقية وتفصيل الثياب</p>
-              <div className="flex items-center gap-3 text-[10px] text-stone-500 mt-1">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] text-stone-500 mt-1">
                 {currentShop?.phone && (
                   <span className="flex items-center gap-1">
                     <Phone className="w-3 h-3 text-stone-400" /> {currentShop.phone}
@@ -220,8 +220,8 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
           </div>
 
           {/* Barcode & Order Number Ticket */}
-          <div className="text-left bg-stone-100 p-2.5 rounded-xl border border-stone-300">
-            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest flex items-center justify-between gap-1">
+          <div className="text-left bg-stone-100 p-2.5 rounded-xl border border-stone-300 w-full sm:w-auto print:w-auto">
+            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest flex items-center justify-between sm:justify-end print:justify-end gap-2">
               <span>أمر تفصيل رقم</span>
               {(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) && (
                 <span className="text-[8px] font-black text-blue-900 bg-blue-100 px-1 py-0.5 rounded border border-blue-200">
@@ -231,7 +231,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             </div>
             <div className="text-lg font-black text-stone-950 font-mono tracking-wider">{order.orderNumber}</div>
             {/* Visual Simulated Barcode */}
-            <div className="h-6 w-32 bg-stone-900 my-1 flex items-center justify-center text-[8px] text-white tracking-[0.3em] font-mono">
+            <div className="h-6 w-full sm:w-32 print:w-32 bg-stone-900 my-1 flex items-center justify-center text-[8px] text-white tracking-[0.3em] font-mono mx-auto sm:mx-0 print:mx-0">
               ||||| | |||| ||| ||
             </div>
             <div className="text-[9px] text-stone-500 text-center font-mono">{order.orderNumber}</div>
@@ -239,7 +239,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         </div>
 
         {/* 2. CUSTOMER & ORDER INFO GRID */}
-        <div className="grid grid-cols-4 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-300 mb-4 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-300 mb-4 text-xs">
           <div>
             <span className="text-[10px] font-bold text-stone-500 block">اسم العميل:</span>
             <span className="font-black text-sm text-stone-900">{order.customerName}</span>
@@ -269,45 +269,90 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
               <Scissors className="w-3.5 h-3.5 text-amber-400" /> جدول المقاسات ({getUnitLabel(order.measurementUnit)})
             </span>
             <div className="flex items-center gap-3">
-              <span className="text-amber-300">وحدة القياس: {getUnitLabel(order.measurementUnit)}</span>
+              <span className="text-amber-300 hidden sm:inline print:inline">وحدة القياس: {getUnitLabel(order.measurementUnit)}</span>
               <span>عدد الثياب: {order.quantity}</span>
             </div>
           </div>
 
-          <table className="w-full border-collapse border border-stone-300 text-center text-xs">
-            <thead>
-              <tr className="bg-stone-100 font-bold text-stone-800">
-                <th className="border border-stone-300 py-1.5 px-1">طول الثوب</th>
-                <th className="border border-stone-300 py-1.5 px-1">الكتف</th>
-                <th className="border border-stone-300 py-1.5 px-1">الصدر</th>
-                <th className="border border-stone-300 py-1.5 px-1">الخصر</th>
-                <th className="border border-stone-300 py-1.5 px-1">الوسط</th>
-                <th className="border border-stone-300 py-1.5 px-1">طول الكم</th>
-                <th className="border border-stone-300 py-1.5 px-1">الكبك</th>
-                <th className="border border-stone-300 py-1.5 px-1">الرقبة</th>
-                <th className="border border-stone-300 py-1.5 px-1">الداير</th>
-                <th className="border border-stone-300 py-1.5 px-1">الجيرو</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="font-black text-sm text-stone-950 bg-white">
-                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950 font-black text-base">{formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.hips, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950">{formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-                <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.armhole, { numeralSystem: getMeasurementNumeralPreference() })}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="hidden sm:block print:block">
+            <table className="w-full border-collapse border border-stone-300 text-center text-xs">
+              <thead>
+                <tr className="bg-stone-100 font-bold text-stone-800">
+                  <th className="border border-stone-300 py-1.5 px-1">طول الثوب</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الكتف</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الصدر</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الخصر</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الوسط</th>
+                  <th className="border border-stone-300 py-1.5 px-1">طول الكم</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الكبك</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الرقبة</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الداير</th>
+                  <th className="border border-stone-300 py-1.5 px-1">الجيرو</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="font-black text-sm text-stone-950 bg-white">
+                  <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950 font-black text-base">{formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.hips, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2 bg-amber-50 text-amber-950">{formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                  <td className="border border-stone-300 py-2">{formatMeasurementDisplay(m.armhole, { numeralSystem: getMeasurementNumeralPreference() })}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 p-3 bg-white border border-stone-300 border-t-0 rounded-b-lg sm:hidden print:hidden text-xs">
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">طول الثوب:</span>
+              <span className="font-black text-amber-900">{formatMeasurementDisplay(m.length, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الكتف:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.shoulder, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الصدر:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.chest, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الخصر:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.waist, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الوسط:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.hips, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">طول الكم:</span>
+              <span className="font-black text-amber-900">{formatMeasurementDisplay(m.sleeveLength, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الكبك:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.wrist, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between border-b border-stone-100 pb-1">
+              <span className="text-stone-500 font-bold">الرقبة:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.neck, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-500 font-bold">الداير:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.bottomWidth, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-500 font-bold">الجيرو:</span>
+              <span className="font-black text-stone-900">{formatMeasurementDisplay(m.armhole, { numeralSystem: getMeasurementNumeralPreference() })}</span>
+            </div>
+          </div>
         </div>
 
         {/* 4. VISUAL TAILORING SPECIFICATIONS (خيارات ورسوم التفصيل) */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 mb-4">
           {/* Card 1: Collar Specs with SVG */}
           <div className="p-3 rounded-xl border-2 border-stone-300 bg-white flex flex-col items-center text-center">
             <span className="text-[11px] font-black text-stone-700 border-b border-stone-200 pb-1 w-full">
@@ -376,7 +421,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
         </div>
 
         {/* 5. FABRIC & FINISH SPECIFICATIONS */}
-        <div className="grid grid-cols-2 gap-3 bg-stone-50 p-3 rounded-xl border border-stone-300 mb-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 bg-stone-50 p-3 rounded-xl border border-stone-300 mb-4 text-xs">
           <div>
             <span className="font-bold text-stone-500 block text-[10px]">القماش المختار:</span>
             <div className="font-black text-stone-900 text-sm">{td.fabric.name || 'غير محدد'}</div>
@@ -459,8 +504,8 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
 
         {/* 7. FINANCIAL SUMMARY & SIGNATURE RECEIPT */}
         <div className="border-t-2 border-stone-900 pt-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className={`grid ${(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) ? 'grid-cols-5' : 'grid-cols-3'} gap-2 text-center flex-1`}>
+          <div className="flex flex-col sm:flex-row print:flex-row items-center justify-between gap-4">
+            <div className={`grid ${(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) ? 'grid-cols-2 sm:grid-cols-5 print:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3 print:grid-cols-3'} gap-2 text-center flex-1 w-full sm:w-auto print:w-auto`}>
               {(vatSnapshot.vatEnabled && (currentShop?.country === 'SA' && currentShop?.currency === 'SAR')) && (
                 <>
                   <div className="bg-stone-50 p-2 rounded-lg border border-stone-300 flex flex-col justify-center">
@@ -501,7 +546,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
             </div>
 
             {/* Signatures */}
-            <div className="flex items-center gap-6 text-center text-[10px] text-stone-600 shrink-0">
+            <div className="flex items-center justify-around sm:justify-start print:justify-start gap-6 text-center text-[10px] text-stone-600 shrink-0 w-full sm:w-auto print:w-auto mt-4 sm:mt-0 print:mt-0">
               <div>
                 <div className="h-8 border-b border-stone-400 w-24 mb-1"></div>
                 <span className="font-bold">توقيع الخياط</span>
@@ -525,7 +570,7 @@ export const PrintTailoringSheet: React.FC<PrintTailoringSheetProps> = ({ order,
                   المسدد فعلياً: <b className="text-emerald-900">{orderPayments.reduce((acc, pay) => acc + (pay.amount || 0), 0)} {getCurrencySymbol(currentShop?.currency)}</b>
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-1.5">
                 {orderPayments.map((pay, idx) => {
                   const methodLabel = PAYMENT_METHOD_MAP[pay.method] || pay.method || 'نقدي';
                   return (
