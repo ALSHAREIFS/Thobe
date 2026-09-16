@@ -398,56 +398,56 @@ export const ReportsView: React.FC = () => {
       </div>
 
       {/* 3 Main KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 min-w-0 w-full overflow-hidden">
         {/* 1. Total Revenue */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500">إجمالي المبيعات</span>
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[#1A365D]">
+            <span className="text-xs font-bold text-stone-500 whitespace-nowrap">إجمالي المبيعات</span>
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[#1A365D] shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-stone-900 tracking-tight">
+          <div className="mt-3 min-w-0">
+            <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
               {totalRevenue} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
             </div>
-            <p className="text-xs text-stone-500 mt-1 font-medium">
+            <p className="text-xs text-stone-500 mt-1 font-medium truncate">
               قيمة الطلبات النشطة
             </p>
           </div>
         </div>
 
         {/* 2. Total Refunds */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500">المبالغ المستردة</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
+            <span className="text-xs font-bold text-stone-500 whitespace-nowrap">المبالغ المستردة</span>
+            <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
               <RotateCcw className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-stone-900 tracking-tight">
+          <div className="mt-3 min-w-0">
+            <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
               {totalRefunds} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
             </div>
-            <p className="text-xs text-rose-600/90 mt-1 font-medium">
+            <p className="text-xs text-rose-600/90 mt-1 font-medium truncate">
               {safeRefunds.length} {safeRefunds.length === 1 ? 'عملية استرداد' : safeRefunds.length === 2 ? 'عمليتا استرداد' : 'عمليات استرداد'}
             </p>
           </div>
         </div>
 
         {/* 3. Remaining */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-500">المتبقي للتحصيل</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700">
+            <span className="text-xs font-bold text-stone-500 whitespace-nowrap">المتبقي للتحصيل</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700 shrink-0">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-stone-900 tracking-tight">
+          <div className="mt-3 min-w-0">
+            <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
               {totalRemaining} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
             </div>
-            <p className="text-xs text-amber-700/90 mt-1 font-medium">
+            <p className="text-xs text-amber-700/90 mt-1 font-medium truncate">
               للطلبات النشطة
             </p>
           </div>
@@ -493,20 +493,20 @@ export const ReportsView: React.FC = () => {
         </div>
 
         {/* 3 Primary VAT Values */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-          <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70">
-            <span className="text-xs text-stone-500 font-semibold block">المبيعات شامل الضريبة</span>
-            <div className="text-xl font-black text-stone-900 mt-1">{vatReport.grossSalesTotal} {getCurrencySymbol(currentShop?.currency)}</div>
-            <span className="text-[11px] text-stone-400 mt-0.5 block">إجمالي المبيعات النشطة</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center min-w-0 w-full overflow-hidden">
+          <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70 min-w-0">
+            <span className="text-xs text-stone-500 font-semibold block whitespace-nowrap">المبيعات شامل الضريبة</span>
+            <div className="text-xl font-black text-stone-900 mt-1 truncate">{vatReport.grossSalesTotal} {getCurrencySymbol(currentShop?.currency)}</div>
+            <span className="text-[11px] text-stone-400 mt-0.5 block truncate">إجمالي المبيعات النشطة</span>
           </div>
 
-          <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70">
-            <span className="text-xs text-stone-500 font-semibold block">المبيعات قبل الضريبة</span>
-            <div className="text-xl font-black text-stone-900 mt-1">{vatReport.salesSubtotal} {getCurrencySymbol(currentShop?.currency)}</div>
-            <span className="text-[11px] text-stone-400 mt-0.5 block">بدون الضريبة</span>
+          <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70 min-w-0">
+            <span className="text-xs text-stone-500 font-semibold block whitespace-nowrap">المبيعات قبل الضريبة</span>
+            <div className="text-xl font-black text-stone-900 mt-1 truncate">{vatReport.salesSubtotal} {getCurrencySymbol(currentShop?.currency)}</div>
+            <span className="text-[11px] text-stone-400 mt-0.5 block truncate">بدون الضريبة</span>
           </div>
 
-          <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-200/60">
+          <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-200/60 min-w-0">
             <span className="text-xs text-[#1A365D] font-bold block">ضريبة القيمة المضافة</span>
             <div className="text-xl font-black text-[#1A365D] mt-1">{vatReport.salesVatTotal} {getCurrencySymbol(currentShop?.currency)}</div>
             <span className="text-[11px] text-blue-700/80 mt-0.5 block">
@@ -662,7 +662,7 @@ export const ReportsView: React.FC = () => {
         {showCashFlowDetails && (
           <div className="pt-4 mt-3 border-t border-stone-100 space-y-4">
             {/* 3 Small & Equal Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center min-w-0 w-full overflow-hidden">
               {/* 1. Gross Paid: Neutral Styling */}
               <div className="bg-stone-50/70 p-3.5 sm:p-4 rounded-xl border border-stone-200/70 flex flex-col justify-center">
                 <span className="text-xs text-stone-600 font-semibold block">إجمالي المقبوض</span>
