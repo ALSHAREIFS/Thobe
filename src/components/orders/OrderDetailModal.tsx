@@ -840,7 +840,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <div className="text-[11px] opacity-80 mt-0.5">
                     {isCancelled
                       ? unrefundedLiability > 0
-                        ? 'تم إلغاء الطلب والمتبقي على العميل 0 {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}، والرصيد المسدد محفوظ كأمانة لإرجاعه للعميل نقداً أو شبكة.'
+                        ? `تم إلغاء الطلب والمتبقي على العميل 0 ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}، والرصيد المسدد محفوظ كأمانة لإرجاعه للعميل نقداً أو شبكة.`
                         : 'تم إلغاء الطلب ولا توجد أي مبالغ معلقة أو مطالبات مالية على العميل أو المتجر.'
                       : activeRemaining === 0
                       ? 'تم تحصيل كافة مستحقات هذا الطلب ولا يوجد أي متبقي.'

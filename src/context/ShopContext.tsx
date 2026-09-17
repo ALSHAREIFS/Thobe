@@ -124,32 +124,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadAllData = useCallback(async () => {
     if (!currentShop?.shopId) {
-      setCustomers([]);
-      setOrders([]);
-      setPayments([]);
       setEmployees([]);
       return;
     }
-
     try {
       setLoading(true);
-      const [cList, oList, pList, rList] = await Promise.all([
-        TailorService.getCustomers(currentShop.shopId).catch(() => []),
-        TailorService.getOrders(currentShop.shopId).catch(() => []),
-        TailorService.getPayments(currentShop.shopId).catch(() => []),
-        TailorService.getRefunds(currentShop.shopId).catch(() => []),
-      ]);
-      setCustomers(cList);
-      setOrders(oList);
-      setPayments(pList);
-      setRefunds(rList);
-
       if (isSuperAdmin || isShop) {
         await fetchEmployeesList();
       }
     } catch (err: any) {
-      console.error('Error loading shop data:', err);
-      showToast(err.message || 'تعذر تحميل بعض البيانات من الخادم', 'error');
+      console.error('Error loading shop employees:', err);
+      showToast(err.message || 'تعذر تحميل بيانات الموظفين', 'error');
     } finally {
       setLoading(false);
     }

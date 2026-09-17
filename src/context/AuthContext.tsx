@@ -73,33 +73,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       setAuthError(null);
 
-      // 1. Check if user is Super Admin
-      const isSuper = await TailorService.checkIsSuperAdmin(user.uid, user.email);
-      setIsSuperAdmin(isSuper);
+      // Parallelize critical startup queries
+      const [isSuper, resolvedShop, rawProfile, userReq] = await Promise.all([
+        TailorService.checkIsSuperAdmin(user.uid, user.email),
+        TailorService.getShopByOwner(user.uid).catch((err) => {
+          console.warn('Could not check shop by ownerUid:', err);
+          return null;
+        }),
+        TailorService.getUserProfile(user.uid).catch((err) => {
+          console.warn('Could not check user profile:', err);
+          return null;
+        }),
+        TailorService.getShopRequestByUser(user.uid, user.email).catch((err) => {
+          console.warn('Could not check user shop request:', err);
+          return null;
+        })
+      ]);
 
+      setIsSuperAdmin(isSuper);
       if (isSuper) {
-        // Bootstrap platform admin records if needed
-        await TailorService.bootstrapPlatformOwner({
+        // Bootstrap platform admin records if needed (Fire and forget to not block startup)
+        TailorService.bootstrapPlatformOwner({
           uid: user.uid,
           email: user.email || 'abdallahshareif11al@gmail.com',
           fullName: user.displayName || 'مدير منصة ثوبي',
-        });
+        }).catch(console.error);
         setPlatformViewMode('platform');
       }
 
-      // 2. Resolve User Profile & Shop Ownership
-      // A. Check if user is the designated owner of a shop (Strictly by ownerUid)
-      let resolvedShop: Shop | null = null;
-      let resolvedProfile: UserProfile | null = null;
-
-      try {
-        resolvedShop = await TailorService.getShopByOwner(user.uid);
-      } catch (err) {
-        console.warn('Could not check shop by ownerUid:', err);
-      }
-
-      // B. Fetch user document from /users/{uid}
-      const rawProfile = await TailorService.getUserProfile(user.uid);
+      let resolvedProfile = null;
 
       // C. If user is owner of a shop (Strictly ownerUid === user.uid):
       if (resolvedShop && resolvedShop.ownerUid === user.uid) {
@@ -113,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserShopRequest(null);
         setCurrentUser(resolvedProfile);
         setCurrentShop(resolvedShop);
+        setLoading(false);
         return;
       }
 
@@ -131,47 +134,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserShopRequest(null);
             setCurrentUser(resolvedProfile);
             setCurrentShop(shop);
+            setLoading(false);
             return;
           }
 
           // Otherwise, user is an employee in this shop
-          // Verify membership record in /shops/{shopId}/users/{uid}
           const memberDoc = await TailorService.getShopMember(rawProfile.shopId, user.uid);
           if (memberDoc && memberDoc.isActive) {
             resolvedProfile = {
               ...rawProfile,
               ...memberDoc,
-              role: 'EMPLOYEE', // strictly EMPLOYEE
+              role: 'EMPLOYEE',
             };
             setUserShopRequest(null);
             setCurrentUser(resolvedProfile);
             setCurrentShop(shop);
+            setLoading(false);
             return;
           } else {
             console.warn('User has inactive or missing employee membership document');
             setUserShopRequest(null);
             setCurrentUser(rawProfile);
             setCurrentShop(shop);
+            setLoading(false);
             return;
           }
-        } catch (shopErr: any) {
+        } catch (shopErr) {
           console.warn('Could not load shop for member:', shopErr);
         }
       }
 
-      // E. Check if this authenticated user has an inbound registration request in shopRequests
-      let userReq: ShopRequest | null = null;
-      try {
-        userReq = await TailorService.getShopRequestByUser(user.uid, user.email);
-      } catch (reqErr) {
-        console.warn('Could not check user shop request:', reqErr);
-      }
       setUserShopRequest(userReq);
 
       // F. Fallback for Super Admin or basic user
       if (isSuper) {
-        setUserShopRequest(null);
-        const superProfile: UserProfile = {
+        const superProfile = {
           userId: user.uid,
           uid: user.uid,
           shopId: '',

@@ -8,5 +8,8 @@ export function getCurrencySymbol(currency?: string | ShopCurrency): string {
 export function formatCurrency(amount: number | undefined | null, currency?: string | ShopCurrency): string {
   const safeAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
   // Format numbers nicely, optional: safeAmount.toLocaleString() but let's keep it simple to match existing style
-  return `${safeAmount} ${getCurrencySymbol(currency)}`;
+  const numStr = safeAmount.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(safeAmount) ? 0 : 2, maximumFractionDigits: 2 });
+  // Use LRM/RLM marks or just return formatted string. 
+  // ‏ is Right-To-Left Mark, ‪ is Left-To-Right Embedding.
+  return `${numStr} ${getCurrencySymbol(currency)}`;
 }

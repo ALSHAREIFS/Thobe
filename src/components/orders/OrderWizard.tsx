@@ -86,7 +86,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   }, [isEditingMode, initialEditingOrder, payments, refunds]);
 
   // Wizard Step (1: Customer, 2: Measurements, 3: Tailoring Details, 4: Fabric & Pricing, 5: Review)
-  const [step, setStep] = useState<number>(isEditingMode ? 2 : 1);
+  const [step, setStep] = useState<number | string>(isEditingMode ? 2 : 1);
 
   // Form State
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
@@ -124,9 +124,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   );
 
   // Pricing & Schedule
-  const [quantity, setQuantity] = useState<number>(initialEditingOrder?.quantity || initialTemplateOrder?.quantity || 1);
-  const [unitPrice, setUnitPrice] = useState<number>(initialEditingOrder?.pricing?.unitPrice || initialTemplateOrder?.pricing?.unitPrice || 0);
-  const [paidAmount, setPaidAmount] = useState<number>(
+  const [quantity, setQuantity] = useState<number | string>(initialEditingOrder?.quantity || initialTemplateOrder?.quantity || 1);
+  const [unitPrice, setUnitPrice] = useState<number | string>(initialEditingOrder?.pricing?.unitPrice || initialTemplateOrder?.pricing?.unitPrice || 0);
+  const [paidAmount, setPaidAmount] = useState<number | string>(
     initialEditingOrder ? (initialEditingOrder.pricing?.paidAmount || 0) : 0
   );
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'bank_transfer' | 'stc_pay'>('cash');
@@ -297,8 +297,10 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   }, [isEditingMode, initialEditingOrder, currentShop]);
 
   const vatPricing = useMemo(() => {
+    const numUnitPrice = parseFloat(String(unitPrice)) || 0;
+    const numQuantity = Math.max(1, parseInt(String(quantity)) || 1);
     return calculateVatPricing({
-      enteredAmount: unitPrice,
+      enteredAmount: numUnitPrice,
       quantity,
       vatEnabled: vatConfig.vatEnabled,
       vatRate: vatConfig.vatRate,
@@ -310,11 +312,15 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
   const totalAmount = vatPricing.totalAmount;
   const subtotalAmount = vatPricing.subtotalAmount;
   const vatAmount = vatPricing.vatAmount;
-  const remainingAmount = Math.max(0, roundMoney(totalAmount - paidAmount));
+  const numPaidAmount = parseFloat(String(paidAmount)) || 0;
+  const remainingAmount = Math.max(0, roundMoney(totalAmount - numPaidAmount));
   const isTotalLessThanNetPaid = isEditingMode && actualNetPaid > 0 && totalAmount < actualNetPaid;
 
   // Submission handler
   const handleFinalSubmit = async () => {
+    const numUnitPrice = parseFloat(String(unitPrice)) || 0;
+    const numQuantity = Math.max(1, parseInt(String(quantity)) || 1);
+    const numPaidAmount = parseFloat(String(paidAmount)) || 0;
     // Synchronous immediate lock guard to block rapid concurrent clicks and shortcut fires
     if (isSubmittingRef.current || isSubmitting || isSavedSuccessfully) {
       return;
@@ -329,7 +335,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     // Financial check: Prevent totalAmount < actualNetPaid
     if (isTotalLessThanNetPaid) {
       showToast(
-        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} {getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ${getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
         'error'
       );
       setStep(4);
@@ -365,9 +371,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     // Validate fabric and pricing before submitting
     const fabricPricingValidation = validateFabricAndPricing({
       fabric: tailoringDetails.fabric,
-      unitPrice,
-      quantity,
-      paidAmount,
+      unitPrice: parseFloat(String(unitPrice)) || 0,
+      quantity: Math.max(1, parseInt(String(quantity)) || 1),
+      paidAmount: parseFloat(String(paidAmount)) || 0,
       paymentMethod,
       deliveryDate,
     });
@@ -403,7 +409,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
 
         const updated = await updateOrder(initialEditingOrder.orderId, {
           garmentType: tailoringDetails.garmentType,
-          quantity,
+          quantity: Math.max(1, parseInt(String(quantity)) || 1),
           measurements: cleanMeasurements,
           measurementUnit,
           tailoringDetails,
@@ -439,7 +445,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
           customerAddress: selectedCustomer.address,
           status: 'NEW',
           garmentType: tailoringDetails.garmentType,
-          quantity,
+          quantity: Math.max(1, parseInt(String(quantity)) || 1),
           measurements: cleanMeasurements,
           measurementUnit,
           tailoringDetails,
@@ -522,16 +528,16 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     if (step === 4) {
       if (isTotalLessThanNetPaid) {
         showToast(
-          `لا يمكن المتابعة: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} {getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+          `لا يمكن المتابعة: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ${getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
           'error'
         );
         return;
       }
       const fabricPricingCheck = validateFabricAndPricing({
         fabric: tailoringDetails.fabric,
-        unitPrice,
-        quantity,
-        paidAmount,
+        unitPrice: parseFloat(String(unitPrice)) || 0,
+        quantity: Math.max(1, parseInt(String(quantity)) || 1),
+        paidAmount: parseFloat(String(paidAmount)) || 0,
         paymentMethod,
         deliveryDate,
       });
@@ -664,9 +670,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     if (s.num > 4) {
                       const fabricPricingCheck = validateFabricAndPricing({
                         fabric: tailoringDetails.fabric,
-                        unitPrice,
-                        quantity,
-                        paidAmount,
+                        unitPrice: parseFloat(String(unitPrice)) || 0,
+                        quantity: Math.max(1, parseInt(String(quantity)) || 1),
+                        paidAmount: parseFloat(String(paidAmount)) || 0,
                         paymentMethod,
                         deliveryDate,
                       });
@@ -925,9 +931,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
             {(() => {
               const currentCheck = validateFabricAndPricing({
                 fabric: tailoringDetails.fabric,
-                unitPrice,
-                quantity,
-                paidAmount,
+                unitPrice: parseFloat(String(unitPrice)) || 0,
+                quantity: Math.max(1, parseInt(String(quantity)) || 1),
+                paidAmount: parseFloat(String(paidAmount)) || 0,
                 paymentMethod,
                 deliveryDate,
               });
@@ -987,7 +993,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     min="1"
                     max="100"
                     value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    dir="ltr"
+                    style={{ unicodeBidi: 'isolate' }}
                     className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-slate-900 text-center focus:bg-white focus:border-[#1A365D]"
                   />
                 </div>
@@ -1007,14 +1015,16 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     step="5"
                     value={unitPrice || ''}
                     placeholder="اكتب السعر يدوياً"
-                    onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                    onChange={(e) => setUnitPrice(e.target.value)}
+                    dir="ltr"
+                    style={{ unicodeBidi: 'isolate' }}
                     className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-slate-900 text-center focus:bg-white focus:border-[#1A365D]"
                   />
-                  {vatConfig.vatEnabled && unitPrice > 0 && (
+                  {vatConfig.vatEnabled && (parseFloat(String(unitPrice)) || 0) > 0 && (
                     <div className="text-[10px] text-slate-500 mt-1 text-center font-medium">
                       {vatConfig.vatPriceMode === 'INCLUSIVE'
-                        ? `(قبل الضريبة: ${(unitPrice / (1 + vatConfig.vatRate / 100)).toFixed(2)} {getCurrencySymbol(currentShop?.currency)})`
-                        : `(شامل الضريبة: ${(unitPrice * (1 + vatConfig.vatRate / 100)).toFixed(2)} {getCurrencySymbol(currentShop?.currency)})`}
+                        ? `(قبل الضريبة: ${((parseFloat(String(unitPrice)) || 0) / (1 + vatConfig.vatRate / 100)).toFixed(2)} ${getCurrencySymbol(currentShop?.currency)})`
+                        : `(شامل الضريبة: ${((parseFloat(String(unitPrice)) || 0) * (1 + vatConfig.vatRate / 100)).toFixed(2)} ${getCurrencySymbol(currentShop?.currency)})`}
                     </div>
                   )}
                 </div>
@@ -1034,7 +1044,9 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                       max={totalAmount}
                       value={paidAmount || ''}
                       placeholder="0"
-                      onChange={(e) => setPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      onChange={(e) => setPaidAmount(e.target.value)}
+                      dir="ltr"
+                      style={{ unicodeBidi: 'isolate' }}
                       className="w-full px-3 py-2 text-base font-black bg-slate-50 rounded-xl border border-slate-300 text-emerald-700 text-center focus:bg-white focus:border-emerald-600"
                     />
                   )}
@@ -1116,7 +1128,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                   <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-black text-rose-800 text-sm">
-                      تعارض مالي: إجمالي الطلب ({formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} {getCurrencySymbol(currentShop?.currency)})!
+                      تعارض مالي: إجمالي الطلب ({formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ${getCurrencySymbol(currentShop?.currency)})`
                     </p>
                     <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
                       لا يمكن تعديل السعر أو الكمية لقيمة تجعل إجمالي الطلب أقل مما تم قبضه فعلياً من العميل. يرجى تصحيح السعر/الكمية، أو إجراء سند استرداد للعميل من تفاصيل الطلب أولاً.
@@ -1312,7 +1324,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-black text-rose-800 text-sm">
-                    تعارض مالي يمنع الحفظ: إجمالي الطلب ({formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} {getCurrencySymbol(currentShop?.currency)})!
+                    تعارض مالي يمنع الحفظ: إجمالي الطلب ({formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً ({actualNetPaid} ${getCurrencySymbol(currentShop?.currency)})`
                   </p>
                   <p className="text-stone-600 mt-1 font-normal text-xs leading-relaxed">
                     يرجى الرجوع للخطوة السابقة وتصحيح سعر الثوب أو الكمية، أو إجراء سند استرداد للعميل أولاً.
