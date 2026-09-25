@@ -110,7 +110,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     // Only SHOP and SuperAdmin can fetch employee list
-    if (isSuperAdmin || isShop) {
+    if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('SHOP_CONTEXT_READY');
+      if (isSuperAdmin || isShop) {
       try {
         const empList = await TailorService.getEmployees(currentShop.shopId);
         setEmployees(empList);

@@ -243,8 +243,8 @@ export const validateFabricAndPricing = (
   }
 
   // 3. Unit Price validation
-  if (!params.unitPrice || params.unitPrice <= 0 || isNaN(params.unitPrice)) {
-    missing.push('سعر الثوب / سعر الوحدة (يجب أن يكون أكبر من 0)');
+  if (params.unitPrice === undefined || params.unitPrice === null || params.unitPrice < 0 || isNaN(params.unitPrice)) {
+    missing.push('سعر الثوب / سعر الوحدة (يجب أن يكون رقماً صحيحاً)');
   }
 
   // 4. Quantity validation

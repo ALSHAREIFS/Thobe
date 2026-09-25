@@ -335,9 +335,16 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     // Financial check: Prevent totalAmount < actualNetPaid
     if (isTotalLessThanNetPaid) {
       showToast(
-        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ${getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+        `لا يمكن حفظ التعديل: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${formatCurrency(actualNetPaid, currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
         'error'
       );
+      setStep(4);
+      return;
+    }
+
+
+    if (!isEditingMode && numPaidAmount > totalAmount) {
+      showToast('لا يمكن أن يكون العربون المدفوع أكبر من الإجمالي', 'error');
       setStep(4);
       return;
     }
@@ -528,7 +535,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
     if (step === 4) {
       if (isTotalLessThanNetPaid) {
         showToast(
-          `لا يمكن المتابعة: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${actualNetPaid} ${getCurrencySymbol(currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
+          `لا يمكن المتابعة: إجمالي الطلب الجديد (${formatCurrency(totalAmount, currentShop?.currency)}) أقل من صافي المبلغ المقبوض فعلياً (${formatCurrency(actualNetPaid, currentShop?.currency)}). يرجى تصحيح السعر أو معالجة الاسترداد أولاً.`,
           'error'
         );
         return;
@@ -989,7 +996,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">عدد الثياب المطلوبة</label>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal"
                     min="1"
                     max="100"
                     value={quantity}
@@ -1010,7 +1017,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     )}
                   </div>
                   <input
-                    type="number"
+                    type="text" inputMode="decimal"
                     min="0"
                     step="5"
                     value={unitPrice || ''}
@@ -1039,7 +1046,7 @@ export const OrderWizard: React.FC<OrderWizardProps> = ({
                     </div>
                   ) : (
                     <input
-                      type="number"
+                      type="text" inputMode="decimal"
                       min="0"
                       max={totalAmount}
                       value={paidAmount || ''}

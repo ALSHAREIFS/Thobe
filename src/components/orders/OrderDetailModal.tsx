@@ -337,7 +337,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       return;
     }
     if (refundAmount > maxRefundable) {
-      setRefundError(`المبلغ المطلوب (${refundAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) يتجاوز الحد الأقصى المتاح للاسترداد (${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}).`);
+      setRefundError(`المبلغ المطلوب (${refundAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) يتجاوز الحد الأقصى المتاح للاسترداد (${formatCurrency(maxRefundable, order.currencySnapshot || currentShop?.currency)}).`);
       return;
     }
 
@@ -800,7 +800,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <span className="text-xs text-stone-600 font-semibold block">الصافي لدى المتجر</span>
                 <span className="text-lg font-black text-stone-900 mt-0.5">{netPaid} {getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}</span>
                 <span className="text-[10px] text-stone-500 mt-0.5">
-                  {isCancelled ? 'أمانة مستحقة للعميل' : `المتاح للإرجاع: ${maxRefundable} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`}
+                  {isCancelled ? 'أمانة مستحقة للعميل' : `المتاح للإرجاع: ${formatCurrency(maxRefundable, order.currencySnapshot || currentShop?.currency)}`}
                 </span>
               </div>
             </div>
@@ -835,7 +835,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         : 'الطلب ملغي — الحساب المالي مسوّى بالكامل'
                       : activeRemaining === 0
                       ? `تم سداد قيمة الطلب بالكامل (${financials.totalAmount} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}) ✓`
-                      : `المتبقي للتحصيل عند التسليم: ${activeRemaining} ${getCurrencySymbol(order.currencySnapshot || currentShop?.currency)}`}
+                      : `المتبقي للتحصيل عند التسليم: ${formatCurrency(activeRemaining, order.currencySnapshot || currentShop?.currency)}`}
                   </div>
                   <div className="text-[11px] opacity-80 mt-0.5">
                     {isCancelled

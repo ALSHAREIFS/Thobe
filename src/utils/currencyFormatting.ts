@@ -11,5 +11,6 @@ export function formatCurrency(amount: number | undefined | null, currency?: str
   const numStr = safeAmount.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(safeAmount) ? 0 : 2, maximumFractionDigits: 2 });
   // Use LRM/RLM marks or just return formatted string. 
   // ‏ is Right-To-Left Mark, ‪ is Left-To-Right Embedding.
-  return `${numStr} ${getCurrencySymbol(currency)}`;
+  // Using LRM (\u200E) ensures the number and currency are displayed left-to-right visually
+  return `\u200E${numStr} ${getCurrencySymbol(currency)}\u200E`;
 }

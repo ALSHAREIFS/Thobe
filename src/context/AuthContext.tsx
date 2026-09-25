@@ -113,7 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: rawProfile?.phone,
         });
         setUserShopRequest(null);
+        if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('USER_PROFILE_LOADED');
         setCurrentUser(resolvedProfile);
+        if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('SHOP_LOADED');
         setCurrentShop(resolvedShop);
         setLoading(false);
         return;
@@ -133,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             setUserShopRequest(null);
             setCurrentUser(resolvedProfile);
+            if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('SHOP_LOADED');
             setCurrentShop(shop);
             setLoading(false);
             return;
@@ -200,6 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+      if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('AUTH_RESOLVED');
       if (user) {
         await loadUserData(user);
       } else {

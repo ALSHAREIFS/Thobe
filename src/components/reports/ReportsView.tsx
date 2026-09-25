@@ -409,7 +409,7 @@ export const ReportsView: React.FC = () => {
           </div>
           <div className="mt-3 min-w-0">
             <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
-              {totalRevenue} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
+              {formatCurrency(totalRevenue, currentShop?.currency)}
             </div>
             <p className="text-xs text-stone-500 mt-1 font-medium truncate">
               قيمة الطلبات النشطة
@@ -427,7 +427,7 @@ export const ReportsView: React.FC = () => {
           </div>
           <div className="mt-3 min-w-0">
             <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
-              {totalRefunds} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
+              {formatCurrency(totalRefunds, currentShop?.currency)}
             </div>
             <p className="text-xs text-rose-600/90 mt-1 font-medium truncate">
               {safeRefunds.length} {safeRefunds.length === 1 ? 'عملية استرداد' : safeRefunds.length === 2 ? 'عمليتا استرداد' : 'عمليات استرداد'}
@@ -445,7 +445,7 @@ export const ReportsView: React.FC = () => {
           </div>
           <div className="mt-3 min-w-0">
             <div className="text-3xl font-black text-stone-900 tracking-tight truncate w-full">
-              {totalRemaining} <span className="text-sm font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
+              {formatCurrency(totalRemaining, currentShop?.currency)}
             </div>
             <p className="text-xs text-amber-700/90 mt-1 font-medium truncate">
               للطلبات النشطة
@@ -496,19 +496,19 @@ export const ReportsView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center min-w-0 w-full overflow-hidden">
           <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70 min-w-0">
             <span className="text-xs text-stone-500 font-semibold block whitespace-nowrap">المبيعات شامل الضريبة</span>
-            <div className="text-xl font-black text-stone-900 mt-1 truncate">{vatReport.grossSalesTotal} {getCurrencySymbol(currentShop?.currency)}</div>
+            <div className="text-xl font-black text-stone-900 mt-1 truncate">{formatCurrency(vatReport.grossSalesTotal, currentShop?.currency)}</div>
             <span className="text-[11px] text-stone-400 mt-0.5 block truncate">إجمالي المبيعات النشطة</span>
           </div>
 
           <div className="bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/70 min-w-0">
             <span className="text-xs text-stone-500 font-semibold block whitespace-nowrap">المبيعات قبل الضريبة</span>
-            <div className="text-xl font-black text-stone-900 mt-1 truncate">{vatReport.salesSubtotal} {getCurrencySymbol(currentShop?.currency)}</div>
+            <div className="text-xl font-black text-stone-900 mt-1 truncate">{formatCurrency(vatReport.salesSubtotal, currentShop?.currency)}</div>
             <span className="text-[11px] text-stone-400 mt-0.5 block truncate">بدون الضريبة</span>
           </div>
 
           <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-200/60 min-w-0">
             <span className="text-xs text-[#1A365D] font-bold block">ضريبة القيمة المضافة</span>
-            <div className="text-xl font-black text-[#1A365D] mt-1">{vatReport.salesVatTotal} {getCurrencySymbol(currentShop?.currency)}</div>
+            <div className="text-xl font-black text-[#1A365D] mt-1">{formatCurrency(vatReport.salesVatTotal, currentShop?.currency)}</div>
             <span className="text-[11px] text-blue-700/80 mt-0.5 block">
               {vatReport.refundedVatTotal > 0
                 ? `الصافي بعد الاسترداد: ${vatReport.netVatTotal} ${getCurrencySymbol(currentShop?.currency)}`
@@ -522,12 +522,12 @@ export const ReportsView: React.FC = () => {
           <div className="font-medium">
             {vatReport.nonTaxableOrdersCount > 0 ? (
               <span>
-                منها <strong className="text-stone-700 font-black">{vatReport.taxableGrossSales} {getCurrencySymbol(currentShop?.currency)}</strong> مبيعات خاضعة للضريبة ·{' '}
+                منها <strong className="text-stone-700 font-black">{formatCurrency(vatReport.taxableGrossSales, currentShop?.currency)} مبيعات خاضعة للضريبة ·{' '}</strong>
                 {vatReport.nonTaxableOrdersCount === 1
                   ? 'طلب سابق غير خاضع'
                   : vatReport.nonTaxableOrdersCount === 2
                   ? 'طلبان سابقان غير خاضعين'
-                  : `${vatReport.nonTaxableOrdersCount} طلبات سابقة غير خاضعة`} ({vatReport.nonTaxableSales} {getCurrencySymbol(currentShop?.currency)})
+                  : `${vatReport.nonTaxableOrdersCount} طلبات سابقة غير خاضعة`} ({formatCurrency(vatReport.nonTaxableSales, currentShop?.currency)})
               </span>
             ) : (
               <span>جميع الطلبات النشطة ({vatReport.vatOrdersCount}) خاضعة لضريبة القيمة المضافة</span>
@@ -560,19 +560,19 @@ export const ReportsView: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200/80">
                 <span className="text-stone-500 block text-[11px]">المبيعات الخاضعة شامل الضريبة</span>
-                <span className="font-black text-stone-900 text-sm mt-0.5 block">{vatReport.taxableGrossSales} {getCurrencySymbol(currentShop?.currency)}</span>
+                <span className="font-black text-stone-900 text-sm mt-0.5 block">{formatCurrency(vatReport.taxableGrossSales, currentShop?.currency)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200/80">
                 <span className="text-stone-500 block text-[11px]">الأساس الخاضع للضريبة</span>
-                <span className="font-black text-stone-900 text-sm mt-0.5 block">{vatReport.taxableBase} {getCurrencySymbol(currentShop?.currency)}</span>
+                <span className="font-black text-stone-900 text-sm mt-0.5 block">{formatCurrency(vatReport.taxableBase, currentShop?.currency)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200/80">
                 <span className="text-stone-500 block text-[11px]">ضريبة المبيعات</span>
-                <span className="font-black text-[#1A365D] text-sm mt-0.5 block">{vatReport.salesVatTotal} {getCurrencySymbol(currentShop?.currency)}</span>
+                <span className="font-black text-[#1A365D] text-sm mt-0.5 block">{formatCurrency(vatReport.salesVatTotal, currentShop?.currency)}</span>
               </div>
               <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200/80">
                 <span className="text-stone-500 block text-[11px]">مبيعات غير خاضعة / سابقة</span>
-                <span className="font-black text-stone-900 text-sm mt-0.5 block">{vatReport.nonTaxableSales} {getCurrencySymbol(currentShop?.currency)}</span>
+                <span className="font-black text-stone-900 text-sm mt-0.5 block">{formatCurrency(vatReport.nonTaxableSales, currentShop?.currency)}</span>
                 <span className="text-[10px] text-stone-400">({vatReport.nonTaxableOrdersCount} طلب)</span>
               </div>
             </div>
@@ -582,9 +582,9 @@ export const ReportsView: React.FC = () => {
               <div className="flex items-center justify-between p-2.5 bg-rose-50/60 rounded-xl border border-rose-200/60 text-xs">
                 <span className="text-rose-900 font-medium">أثر الاستردادات على الضريبة المحصلة:</span>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-rose-700">-{vatReport.refundedVatTotal} {getCurrencySymbol(currentShop?.currency)}</span>
+                  <span className="font-bold text-rose-700">-{formatCurrency(vatReport.refundedVatTotal, currentShop?.currency)}</span>
                   <span className="text-stone-400">|</span>
-                  <span className="font-black text-stone-900">صافي الضريبة المستحقة: {vatReport.netVatTotal} {getCurrencySymbol(currentShop?.currency)}</span>
+                  <span className="font-black text-stone-900">صافي الضريبة المستحقة: {formatCurrency(vatReport.netVatTotal, currentShop?.currency)}</span>
                 </div>
               </div>
             )}
@@ -605,12 +605,12 @@ export const ReportsView: React.FC = () => {
                         </span>
                         <div>
                           <div className="font-bold text-stone-900">{data.orderCount} طلبات</div>
-                          <div className="text-[11px] text-stone-500">الأساس: {data.subtotal} {getCurrencySymbol(currentShop?.currency)}</div>
+                          <div className="text-[11px] text-stone-500">الأساس: {formatCurrency(data.subtotal, currentShop?.currency)}</div>
                         </div>
                       </div>
                       <div className="text-left font-mono">
-                        <div className="text-[#1A365D] font-black">{data.vat} {getCurrencySymbol(currentShop?.currency)} ضريبة</div>
-                        <div className="text-stone-500 text-[11px]">الإجمالي: {data.total} {getCurrencySymbol(currentShop?.currency)}</div>
+                        <div className="text-[#1A365D] font-black">{formatCurrency(data.vat, currentShop?.currency)} ضريبة</div>
+                        <div className="text-stone-500 text-[11px]">الإجمالي: {formatCurrency(data.total, currentShop?.currency)}</div>
                       </div>
                     </div>
                   ))}
@@ -667,7 +667,7 @@ export const ReportsView: React.FC = () => {
               <div className="bg-stone-50/70 p-3.5 sm:p-4 rounded-xl border border-stone-200/70 flex flex-col justify-center">
                 <span className="text-xs text-stone-600 font-semibold block">إجمالي المقبوض</span>
                 <div className="text-2xl font-black text-stone-900 mt-1">
-                  {totalGrossPaid} <span className="text-xs font-bold text-stone-400">{getCurrencySymbol(currentShop?.currency)}</span>
+                  {formatCurrency(totalGrossPaid, currentShop?.currency)}
                 </div>
                 <span className="text-[11px] text-stone-400 mt-1 block">
                   {safePayments.length} {safePayments.length === 1 ? 'دفعة مسجلة' : safePayments.length === 2 ? 'دفعتان مسجلتان' : 'دفعات مسجلة'}
@@ -678,7 +678,7 @@ export const ReportsView: React.FC = () => {
               <div className="bg-rose-50/50 p-3.5 sm:p-4 rounded-xl border border-rose-200/60 flex flex-col justify-center">
                 <span className="text-xs text-rose-800 font-semibold block">إجمالي المسترد</span>
                 <div className="text-2xl font-black text-rose-950 mt-1">
-                  {totalRefunds} <span className="text-xs font-bold text-rose-700/80">{getCurrencySymbol(currentShop?.currency)}</span>
+                  {formatCurrency(totalRefunds, currentShop?.currency)}
                 </div>
                 <span className="text-[11px] text-rose-700/80 mt-1 block">
                   {safeRefunds.length} {safeRefunds.length === 1 ? 'مبلغ معاد' : safeRefunds.length === 2 ? 'مبلغان معـادان' : 'مبالغ معادة'}
@@ -689,7 +689,7 @@ export const ReportsView: React.FC = () => {
               <div className="bg-emerald-50/50 p-3.5 sm:p-4 rounded-xl border border-emerald-200/60 flex flex-col justify-center">
                 <span className="text-xs text-emerald-800 font-semibold block">صافي المقبوض بعد الاسترداد</span>
                 <div className="text-2xl font-black text-emerald-800 mt-1">
-                  {totalNetPaid} <span className="text-xs font-bold text-emerald-600">{getCurrencySymbol(currentShop?.currency)}</span>
+                  {formatCurrency(totalNetPaid, currentShop?.currency)}
                 </div>
                 <span className="text-[11px] text-emerald-700/80 mt-1 block">
                   الرصيد الفعلي بعد الاسترداد
@@ -718,7 +718,7 @@ export const ReportsView: React.FC = () => {
             <div className="flex-1 space-y-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-black text-amber-950">
-                  ⚠️ مبلغ يحتاج مراجعة: يوجد مبلغ مقبوض بقيمة {netUnlinked} {getCurrencySymbol(currentShop?.currency)} لطلب سابق غير موجود بالقائمة الحالية
+                  ⚠️ مبلغ يحتاج مراجعة: يوجد مبلغ مقبوض بقيمة {formatCurrency(netUnlinked, currentShop?.currency)} لطلب سابق غير موجود بالقائمة الحالية
                 </h3>
                 <span className="text-xs font-bold px-2.5 py-1 bg-amber-200 text-amber-900 rounded-lg">
                   {unlinkedGrouped.filter((g) => g.netBalance > 0).length} دفعة تحتاج مراجعة
@@ -747,17 +747,17 @@ export const ReportsView: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-stone-500">المبلغ المدفوع:</span>
-                          <span className="font-black text-emerald-700">{item.grossPaid} {getCurrencySymbol(currentShop?.currency)}</span>
+                          <span className="font-black text-emerald-700">{formatCurrency(item.grossPaid, currentShop?.currency)}</span>
                         </div>
                         {item.totalRefunded > 0 && (
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-stone-500">تم إرجاع سابقاً:</span>
-                            <span className="font-black text-rose-700">{item.totalRefunded} {getCurrencySymbol(currentShop?.currency)}</span>
+                            <span className="font-black text-rose-700">{formatCurrency(item.totalRefunded, currentShop?.currency)}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between pt-1 border-t border-stone-100">
                           <span className="font-bold text-stone-700">المتبقي للإرجاع:</span>
-                          <span className="font-black text-base text-amber-900">{item.netBalance} {getCurrencySymbol(currentShop?.currency)}</span>
+                          <span className="font-black text-base text-amber-900">{formatCurrency(item.netBalance, currentShop?.currency)}</span>
                         </div>
                       </div>
 
@@ -789,7 +789,7 @@ export const ReportsView: React.FC = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-black text-rose-950">
-                  تنبيه: يوجد {totalUnrefundedCancelled} {getCurrencySymbol(currentShop?.currency)} مدفوعة لطلبات ملغاة بانتظار إرجاعها للعميل
+                  تنبيه: يوجد {formatCurrency(totalUnrefundedCancelled, currentShop?.currency)} مدفوعة لطلبات ملغاة بانتظار إرجاعها للعميل
                 </h3>
                 <span className="text-xs font-bold px-2.5 py-1 bg-rose-200 text-rose-900 rounded-lg">
                   {unrefundedCancelledOrders.length} طلب ملغي
@@ -805,7 +805,7 @@ export const ReportsView: React.FC = () => {
                     onClick={() => setSelectedOrderForModal(l.order)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-100 text-rose-950 rounded-xl border border-rose-300 text-xs font-black transition-all shadow-2xs cursor-pointer"
                   >
-                    <span>#{l.order?.orderNumber} ({l.order?.customerName}): متبقي للإرجاع {l.unrefundedCancelled} {getCurrencySymbol(currentShop?.currency)}</span>
+                    <span>#{l.order?.orderNumber} ({l.order?.customerName}): متبقي للإرجاع {formatCurrency(l.unrefundedCancelled, currentShop?.currency)}</span>
                     <Eye className="w-3.5 h-3.5 text-rose-700" />
                   </button>
                 ))}
@@ -924,13 +924,13 @@ export const ReportsView: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3 px-3 font-bold text-stone-800 text-center">
-                          <div>{l.totalAmount} {getCurrencySymbol(currentShop?.currency)}</div>
+                          <div>{formatCurrency(l.totalAmount, currentShop?.currency)}</div>
                           {(() => {
                             const snap = getOrderVatSnapshot(l.order);
                             if (snap.vatEnabled) {
                               return (
                                 <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 font-bold inline-block mt-0.5">
-                                  ضريبة: {snap.vatAmount} {getCurrencySymbol(currentShop?.currency)}
+                                  ضريبة: {formatCurrency(snap.vatAmount, currentShop?.currency)}
                                 </span>
                               );
                             }
@@ -938,7 +938,7 @@ export const ReportsView: React.FC = () => {
                           })()}
                         </td>
                         <td className="py-3 px-3 font-bold text-emerald-700 text-center">
-                          {l.grossPaid} {getCurrencySymbol(currentShop?.currency)}
+                          {formatCurrency(l.grossPaid, currentShop?.currency)}
                           <span className="text-[10px] font-normal text-stone-400 block">({l.payments.length} دفعة)</span>
                         </td>
                         <td className="py-3 px-3 font-bold text-rose-700 text-center">
@@ -948,13 +948,13 @@ export const ReportsView: React.FC = () => {
                           )}
                         </td>
                         <td className="py-3 px-3 font-black text-stone-900 text-center">
-                          {l.netPaid} {getCurrencySymbol(currentShop?.currency)}
+                          {formatCurrency(l.netPaid, currentShop?.currency)}
                         </td>
                         <td className="py-3 px-3 font-bold text-xs">
                           {l.isCancelled ? (
                             l.unrefundedCancelled > 0 ? (
                               <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg inline-block text-[11px]">
-                                ⚠️ متبقي للإرجاع ({l.unrefundedCancelled} {getCurrencySymbol(currentShop?.currency)})
+                                ⚠️ متبقي للإرجاع ({formatCurrency(l.unrefundedCancelled, currentShop?.currency)})
                               </span>
                             ) : (
                               <span className="text-stone-500 bg-stone-100 px-2 py-0.5 rounded-lg inline-block text-[11px]">
@@ -968,7 +968,7 @@ export const ReportsView: React.FC = () => {
                               </span>
                             ) : (
                               <span className="text-blue-800 bg-blue-100 px-2 py-0.5 rounded-lg inline-block text-[11px]">
-                                ⏳ متبقي {l.activeRemaining} {getCurrencySymbol(currentShop?.currency)}
+                                ⏳ متبقي {formatCurrency(l.activeRemaining, currentShop?.currency)}
                               </span>
                             )
                           )}
@@ -1014,7 +1014,7 @@ export const ReportsView: React.FC = () => {
                                       {l.payments.map((p) => (
                                         <div key={p.paymentId} className="flex items-center justify-between p-2 bg-stone-50 rounded-lg border border-stone-100 text-[11px]">
                                           <div>
-                                            <span className="font-black text-stone-900">{p.amount} {getCurrencySymbol(currentShop?.currency)}</span>
+                                            <span className="font-black text-stone-900">{formatCurrency(p.amount, currentShop?.currency)}</span>
                                             <span className="text-stone-500 mr-2">({PAYMENT_METHOD_MAP[p.method] || p.method})</span>
                                             {p.receiptNumber && <span className="text-stone-400 font-mono mr-2">#{p.receiptNumber}</span>}
                                           </div>
@@ -1038,7 +1038,7 @@ export const ReportsView: React.FC = () => {
                                       {l.refunds.map((r) => (
                                         <div key={r.refundId} className="flex items-center justify-between p-2 bg-rose-50/50 rounded-lg border border-rose-100 text-[11px]">
                                           <div>
-                                            <span className="font-black text-rose-900">{r.amount} {getCurrencySymbol(currentShop?.currency)}</span>
+                                            <span className="font-black text-rose-900">{formatCurrency(r.amount, currentShop?.currency)}</span>
                                             <span className="text-rose-700 mr-2">({PAYMENT_METHOD_MAP[r.paymentMethod] || r.paymentMethod})</span>
                                             {r.reason && <span className="text-stone-600 mr-2">• {r.reason}</span>}
                                           </div>
@@ -1059,15 +1059,15 @@ export const ReportsView: React.FC = () => {
                                     <div className="p-2.5 bg-blue-50/60 rounded-lg border border-blue-200 text-[11px] space-y-1.5 text-slate-800">
                                       <div className="flex justify-between">
                                         <span className="text-slate-500">قبل الضريبة:</span>
-                                        <span className="font-bold">{snap.subtotalAmount} {getCurrencySymbol(currentShop?.currency)}</span>
+                                        <span className="font-bold">{formatCurrency(snap.subtotalAmount, currentShop?.currency)}</span>
                                       </div>
                                       <div className="flex justify-between">
                                         <span className="text-slate-500">مبلغ الضريبة ({snap.vatRate}%):</span>
-                                        <span className="font-black text-blue-900">{snap.vatAmount} {getCurrencySymbol(currentShop?.currency)}</span>
+                                        <span className="font-black text-blue-900">{formatCurrency(snap.vatAmount, currentShop?.currency)}</span>
                                       </div>
                                       <div className="flex justify-between pt-1 border-t border-blue-200">
                                         <span className="text-slate-700 font-bold">الإجمالي شامل الضريبة:</span>
-                                        <span className="font-black text-slate-950">{snap.totalAmount} {getCurrencySymbol(currentShop?.currency)}</span>
+                                        <span className="font-black text-slate-950">{formatCurrency(snap.totalAmount, currentShop?.currency)}</span>
                                       </div>
                                       {snap.vatRegistrationNumber && (
                                         <div className="pt-1 text-[10px] text-slate-500 font-mono">
@@ -1115,7 +1115,7 @@ export const ReportsView: React.FC = () => {
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="text-emerald-700">مدفوع: {p.gross}</span>
                       {p.ref > 0 && <span className="text-rose-600">معاد: -{p.ref}</span>}
-                      <span className="font-black text-stone-900">صافي: {net} {getCurrencySymbol(currentShop?.currency)} ({pct}%)</span>
+                      <span className="font-black text-stone-900">صافي: {formatCurrency(net, currentShop?.currency)} ({pct}%)</span>
                     </div>
                   </div>
                   <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
@@ -1194,7 +1194,7 @@ export const ReportsView: React.FC = () => {
                 </div>
                 <div className="flex justify-between pt-1 border-t border-amber-200">
                   <span className="font-bold text-amber-950">المبلغ القابل للإرجاع:</span>
-                  <span className="font-black text-emerald-800">{unlinkedRefundTarget.maxRefundable} {getCurrencySymbol(currentShop?.currency)}</span>
+                  <span className="font-black text-emerald-800">{formatCurrency(unlinkedRefundTarget.maxRefundable, currentShop?.currency)}</span>
                 </div>
               </div>
 

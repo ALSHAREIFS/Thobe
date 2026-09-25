@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
   <head>
+    <script>
+      window.__APP_START__ = performance.now();
+      window.__TIMINGS__ = {};
+      window.__MARK_TIMING__ = (name) => {
+        window.__TIMINGS__[name] = performance.now();
+        console.log(`[TIMING] ${name}: ${(performance.now() - window.__APP_START__).toFixed(2)}ms`);
+      };
+      window.__MARK_TIMING__("APP_START");
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ثوبي | دفتر تفصيل الثياب الرجالية الذكي</title>

@@ -27,6 +27,7 @@ export const storage = getStorage(app);
 import { getFunctions } from 'firebase/functions';
 export const functions = getFunctions(app, 'us-central1'); // Assuming default region
 export const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+if (typeof window !== 'undefined' && window.__MARK_TIMING__) window.__MARK_TIMING__('FIREBASE_INITIALIZED');
 
 
 
